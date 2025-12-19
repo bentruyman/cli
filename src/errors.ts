@@ -1,0 +1,90 @@
+class BaseError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = new.target.name;
+
+    if ("captureStackTrace" in Error) {
+      (Error as any).captureStackTrace(this, new.target);
+    }
+  }
+}
+
+/** Interface for error sources that can provide help text */
+export interface ErrorSource {
+  help(): string;
+}
+
+/** Thrown when an option value is invalid (e.g., non-numeric value for number option) */
+export class InvalidOptionError extends BaseError {
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(message: string, source?: ErrorSource) {
+    super(message);
+    this.source = source;
+  }
+}
+
+/** Thrown when a required option is not provided */
+export class MissingOptionError extends BaseError {
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(optionName: string, source?: ErrorSource) {
+    super(`Missing required option: --${optionName}`);
+    this.source = source;
+  }
+}
+
+/** Thrown when a required positional argument is not provided */
+export class MissingArgumentError extends BaseError {
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(argName: string, source?: ErrorSource) {
+    super(`Missing required argument: ${argName}`);
+    this.source = source;
+  }
+}
+
+/** Thrown when a positional argument value is invalid (e.g., non-numeric value for number arg) */
+export class InvalidArgumentError extends BaseError {
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(message: string, source?: ErrorSource) {
+    super(message);
+    this.source = source;
+  }
+}
+
+/** Thrown when a parent command is invoked without a subcommand */
+export class MissingSubcommandError extends BaseError {
+  /** List of valid subcommand names */
+  availableSubcommands: string[];
+
+  constructor(commandName: string, availableSubcommands: string[]) {
+    const available = availableSubcommands.join(", ");
+    super(`Missing subcommand for '${commandName}'. Available: ${available}`);
+    this.availableSubcommands = availableSubcommands;
+  }
+}
+
+/** Thrown when an unknown subcommand is provided */
+export class UnknownSubcommandError extends BaseError {
+  /** List of valid subcommand names */
+  availableSubcommands: string[];
+
+  constructor(subcommand: string, availableSubcommands: string[]) {
+    const available = availableSubcommands.join(", ");
+    super(`Unknown subcommand '${subcommand}'. Available: ${available}`);
+    this.availableSubcommands = availableSubcommands;
+  }
+}
+
+/** Thrown when attempting to define an option that conflicts with built-in flags (--help, --version) */
+export class ReservedOptionError extends BaseError {
+  constructor(flag: string) {
+    super(`Cannot override reserved flag: ${flag}`);
+  }
+}

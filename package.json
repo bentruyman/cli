@@ -1,0 +1,60 @@
+{
+  "name": "@truyman/cli",
+  "version": "1.0.0",
+  "description": "Build CLIs. TypeScript does the rest.",
+  "keywords": [
+    "arguments",
+    "cli",
+    "command-line",
+    "parser",
+    "typescript"
+  ],
+  "homepage": "https://github.com/bentruyman/cli#readme",
+  "bugs": {
+    "url": "https://github.com/bentruyman/cli/issues"
+  },
+  "license": "MIT",
+  "author": "Ben Truyman",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bentruyman/cli.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node && tsc -p tsconfig.build.json",
+    "check": "bun run typecheck && bun run lint",
+    "format": "oxfmt && oxlint --fix",
+    "lint": "oxfmt --check && oxlint",
+    "prepare": "husky",
+    "prepublishOnly": "bun run build",
+    "release": "release-it",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "kleur": "^4.1.5",
+    "mri": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.21.0",
+    "oxlint": "^1.36.0",
+    "release-it": "^19.2.2",
+    "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint"
+    ]
+  }
+}
