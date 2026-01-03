@@ -54,7 +54,7 @@
   "lint-staged": {
     "*": [
       "oxfmt --no-error-on-unmatched-pattern",
-      "oxlint"
+      "oxlint --fix"
     ]
   }
 }
