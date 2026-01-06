@@ -38,9 +38,8 @@ ${kleur.bold("Options:")}
   ${kleur.cyan("    --foo")}         a foo flag
   ${kleur.cyan(`-b, --bar${kleur.dim("=<num>")}`)}   a bar flag
   ${kleur.cyan(`-x, --quxx${kleur.dim("=<str>")}`)}  a quxx flag
-
-  ${kleur.cyan("-h, --help")}     Show help
-  ${kleur.cyan("-V, --version")}  Show version`);
+  ${kleur.cyan("-h, --help")}        Show help
+  ${kleur.cyan("-V, --version")}     Show version`);
   });
 
   it("shows ... suffix for multiple options", () => {

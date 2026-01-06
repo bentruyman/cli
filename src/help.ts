@@ -8,6 +8,11 @@ const VALUE_SUFFIXES: Record<keyof TypeMap, string> = {
   boolean: "",
 };
 
+const BUILTIN_OPTIONS: NormalizedOptions = {
+  help: { type: "boolean", long: "help", short: "h", description: "Show help" },
+  version: { type: "boolean", long: "version", short: "V", description: "Show version" },
+};
+
 export interface CommandInfo {
   name: string;
   description?: string;
@@ -45,12 +50,8 @@ export function formatHelp(command: CommandInfo): string {
     output.push("");
   }
 
-  if (Object.keys(command.options).length > 0) {
-    output.push(...formatOptions(command.options));
-    output.push("");
-  }
-
-  output.push(...formatBuiltinFlags());
+  const mergedOptions = { ...command.options, ...BUILTIN_OPTIONS };
+  output.push(...formatOptions(mergedOptions));
 
   return output.join("\n");
 }
@@ -129,13 +130,6 @@ function formatFlag(opt: NormalizedOptions[string], valueSuffix: string): string
     : kleur.cyan(`    --${negatablePrefix}${opt.long}`);
 }
 
-function formatBuiltinFlags(): string[] {
-  return [
-    `  ${kleur.cyan("-h, --help")}     Show help`,
-    `  ${kleur.cyan("-V, --version")}  Show version`,
-  ];
-}
-
 export function formatParentHelp(command: ParentCommandInfo): string {
   const output: string[] = [""];
 
@@ -162,14 +156,9 @@ export function formatParentHelp(command: ParentCommandInfo): string {
     output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
   }
 
-  // Options if any
-  if (Object.keys(command.options).length > 0) {
-    output.push("");
-    output.push(...formatOptions(command.options));
-  }
-
   output.push("");
-  output.push(...formatBuiltinFlags());
+  const mergedOptions = { ...command.options, ...BUILTIN_OPTIONS };
+  output.push(...formatOptions(mergedOptions));
 
   return output.join("\n");
 }
