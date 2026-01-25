@@ -119,6 +119,24 @@ export type NormalizedOptions = Record<string, NormalizedOption>;
  */
 export type CommandGroups = Record<string, string[]>;
 
+/**
+ * A single example for help output.
+ * Can be a simple command string or an object with command and description.
+ *
+ * @example
+ * ```typescript
+ * // Simple string
+ * 'my-cli init myapp'
+ *
+ * // With description
+ * { command: 'my-cli deploy --env staging', description: 'Deploy to staging' }
+ * ```
+ */
+export type Example = string | { command: string; description?: string };
+
+/** Array of examples shown in help output */
+export type Examples = Example[];
+
 /** Converts positional arg definitions to a tuple of their runtime value types */
 export type ArgsToValues<T extends readonly PositionalArg[]> = {
   [K in keyof T]: T[K] extends { type: infer U extends keyof TypeMap; variadic: true }
@@ -155,6 +173,8 @@ type BaseCommandOptions = {
   description?: string;
   /** Version string shown when --version or -V is passed */
   version?: string;
+  /** Examples shown in help output, after description and before usage */
+  examples?: Examples;
 };
 
 /**

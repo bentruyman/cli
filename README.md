@@ -97,6 +97,7 @@ HELLO, ADA!
 | `handler`     | `(args, options) => void` | \*       | Your code goes here            |
 | `subcommands` | `Command[]`               | \*       | Nested commands                |
 | `groups`      | `CommandGroups`           | No       | Group subcommands in help      |
+| `examples`    | `Examples`                | No       | Usage examples in help         |
 
 \* A command has either `handler` OR `subcommands`, never both.
 
@@ -191,6 +192,43 @@ Options:
 ```
 
 Groups appear in definition order. Commands not assigned to any group appear last without a header. This is optional—omit `groups` for a flat command list.
+
+### Examples
+
+Add usage examples to help output:
+
+```typescript
+const cli = command({
+  name: "my-cli",
+  description: "A deployment tool",
+  examples: [
+    "my-cli deploy",
+    "my-cli deploy --env staging",
+    { command: "my-cli deploy --env prod", description: "Deploy to production" },
+  ],
+  handler: () => {},
+});
+```
+
+```
+$ my-cli --help
+
+A deployment tool
+
+Examples:
+  my-cli deploy
+  my-cli deploy --env staging
+  my-cli deploy --env prod  Deploy to production
+
+Usage:
+  my-cli [options]
+
+Options:
+  -h, --help     Show help
+  -V, --version  Show version
+```
+
+Examples can be simple strings or objects with `{ command, description }` for annotated examples. Descriptions are shown dimmed and aligned.
 
 ### Positional Args
 

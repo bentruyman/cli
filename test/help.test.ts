@@ -342,4 +342,123 @@ ${kleur.bold("Options:")}
       expect(alphaIdx).toBeLessThan(betaIdx);
     });
   });
+
+  describe("examples", () => {
+    it("displays simple string examples", () => {
+      const cmd = command({
+        name: "my-cli",
+        examples: ["my-cli init myapp", "my-cli build --prod"],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain(kleur.bold("Examples:"));
+      expect(help).toContain("my-cli init myapp");
+      expect(help).toContain("my-cli build --prod");
+    });
+
+    it("displays examples with descriptions", () => {
+      const cmd = command({
+        name: "my-cli",
+        examples: [
+          { command: "my-cli deploy --env staging", description: "Deploy to staging" },
+          { command: "my-cli deploy --env prod", description: "Deploy to production" },
+        ],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("my-cli deploy --env staging");
+      expect(help).toContain(kleur.dim("Deploy to staging"));
+      expect(help).toContain("my-cli deploy --env prod");
+      expect(help).toContain(kleur.dim("Deploy to production"));
+    });
+
+    it("displays mixed examples (strings and objects)", () => {
+      const cmd = command({
+        name: "my-cli",
+        examples: [
+          "my-cli init myapp",
+          { command: "my-cli build --prod", description: "Production build" },
+        ],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("my-cli init myapp");
+      expect(help).toContain("my-cli build --prod");
+      expect(help).toContain(kleur.dim("Production build"));
+    });
+
+    it("displays examples without description (object form)", () => {
+      const cmd = command({
+        name: "my-cli",
+        examples: [{ command: "my-cli init myapp" }],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("my-cli init myapp");
+    });
+
+    it("does not show Examples section when examples is undefined", () => {
+      const cmd = command({
+        name: "my-cli",
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).not.toContain("Examples:");
+    });
+
+    it("does not show Examples section when examples is empty", () => {
+      const cmd = command({
+        name: "my-cli",
+        examples: [],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).not.toContain("Examples:");
+    });
+
+    it("shows examples after description and before usage", () => {
+      const cmd = command({
+        name: "my-cli",
+        description: "A test CLI",
+        examples: ["my-cli init"],
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      const descIdx = help.indexOf("A test CLI");
+      const examplesIdx = help.indexOf("Examples:");
+      const usageIdx = help.indexOf("Usage:");
+
+      expect(descIdx).toBeLessThan(examplesIdx);
+      expect(examplesIdx).toBeLessThan(usageIdx);
+    });
+
+    it("works on parent commands", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        examples: ["my-cli init myapp", "my-cli build"],
+        subcommands: [init],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Examples:"));
+      expect(help).toContain("my-cli init myapp");
+    });
+  });
 });

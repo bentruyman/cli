@@ -26,6 +26,8 @@ export type {
   AnyCommand,
   CommandGroups,
   CommandOptions,
+  Example,
+  Examples,
   LeafCommandOptions,
   MergeOptions,
   Option,

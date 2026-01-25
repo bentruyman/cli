@@ -1,6 +1,13 @@
 import kleur from "kleur";
 
-import type { AnyCommand, CommandGroups, NormalizedOptions, PositionalArg, TypeMap } from "./types";
+import type {
+  AnyCommand,
+  CommandGroups,
+  Examples,
+  NormalizedOptions,
+  PositionalArg,
+  TypeMap,
+} from "./types";
 
 const VALUE_SUFFIXES: Record<keyof TypeMap, string> = {
   number: "=<num>",
@@ -19,6 +26,7 @@ export interface CommandInfo {
   args: readonly PositionalArg[];
   options: NormalizedOptions;
   inherits?: NormalizedOptions;
+  examples?: Examples;
 }
 
 export interface ParentCommandInfo {
@@ -27,6 +35,30 @@ export interface ParentCommandInfo {
   options: NormalizedOptions;
   subcommands: Map<string, AnyCommand>;
   groups?: CommandGroups;
+  examples?: Examples;
+}
+
+function formatExamples(examples: Examples): string[] {
+  const output: string[] = [kleur.bold("Examples:")];
+
+  const itemsWithDesc = examples.filter(
+    (e): e is { command: string; description: string } => typeof e !== "string" && !!e.description,
+  );
+  const maxCmdLen =
+    itemsWithDesc.length > 0 ? Math.max(...itemsWithDesc.map((e) => e.command.length)) : 0;
+
+  for (const example of examples) {
+    if (typeof example === "string") {
+      output.push(`  ${example}`);
+    } else if (example.description) {
+      const padding = " ".repeat(maxCmdLen - example.command.length + 2);
+      output.push(`  ${example.command}${padding}${kleur.dim(example.description)}`);
+    } else {
+      output.push(`  ${example.command}`);
+    }
+  }
+
+  return output;
 }
 
 export function formatHelp(command: CommandInfo): string {
@@ -34,6 +66,11 @@ export function formatHelp(command: CommandInfo): string {
 
   if (command.description) {
     output.push(command.description);
+    output.push("");
+  }
+
+  if (command.examples && command.examples.length > 0) {
+    output.push(...formatExamples(command.examples));
     output.push("");
   }
 
@@ -136,6 +173,11 @@ export function formatParentHelp(command: ParentCommandInfo): string {
 
   if (command.description) {
     output.push(command.description);
+    output.push("");
+  }
+
+  if (command.examples && command.examples.length > 0) {
+    output.push(...formatExamples(command.examples));
     output.push("");
   }
 

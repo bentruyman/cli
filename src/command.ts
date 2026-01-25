@@ -17,6 +17,7 @@ import type {
   ArgsToValues,
   CommandGroups,
   CommandOptions,
+  Examples,
   LeafCommandOptions,
   MergeOptions,
   NormalizedOptions,
@@ -81,11 +82,14 @@ export class Command<
   readonly subcommands?: Map<string, AnyCommand>;
   /** Group definitions for organizing subcommands in help output */
   readonly groups?: CommandGroups;
+  /** Examples shown in help output */
+  readonly examples?: Examples;
 
   constructor(cmdOptions: CommandOptions<T, O, I>) {
     this.name = cmdOptions.name;
     this.description = cmdOptions.description;
     this.version = cmdOptions.version;
+    this.examples = cmdOptions.examples;
     this.options = normalizeOptions(cmdOptions.options ?? {});
 
     if (isParentOptions(cmdOptions)) {
@@ -188,9 +192,10 @@ export class Command<
         options: this.options,
         subcommands: this.subcommands,
         groups: this.groups,
+        examples: this.examples,
       });
     }
-    return formatHelp(this);
+    return formatHelp({ ...this, examples: this.examples });
   }
 
   /**

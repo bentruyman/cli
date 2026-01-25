@@ -1711,4 +1711,49 @@ describe("subcommands", () => {
       expect(cli.groups).toEqual({});
     });
   });
+
+  describe("examples", () => {
+    it("stores examples property on leaf command", () => {
+      const cmd = command({
+        name: "cli",
+        examples: ["cli init myapp", "cli build --prod"],
+        handler: () => {},
+      });
+
+      expect(cmd.examples).toEqual(["cli init myapp", "cli build --prod"]);
+    });
+
+    it("stores examples property on parent command", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      const cli = command({
+        name: "cli",
+        examples: ["cli init myapp"],
+        subcommands: [init],
+      });
+
+      expect(cli.examples).toEqual(["cli init myapp"]);
+    });
+
+    it("allows mixed example formats", () => {
+      const cmd = command({
+        name: "cli",
+        examples: ["cli init", { command: "cli build", description: "Build the project" }],
+        handler: () => {},
+      });
+
+      expect(cmd.examples).toHaveLength(2);
+      expect(cmd.examples![0]).toBe("cli init");
+      expect(cmd.examples![1]).toEqual({ command: "cli build", description: "Build the project" });
+    });
+
+    it("allows undefined examples", () => {
+      const cmd = command({
+        name: "cli",
+        handler: () => {},
+      });
+
+      expect(cmd.examples).toBeUndefined();
+    });
+  });
 });
