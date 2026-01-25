@@ -461,4 +461,80 @@ ${kleur.bold("Options:")}
       expect(help).toContain("my-cli init myapp");
     });
   });
+
+  describe("default values", () => {
+    it("shows default value for string option", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          output: { type: "string", default: "out.txt", description: "Output file" },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Output file");
+      expect(help).toContain(kleur.dim("(default: out.txt)"));
+    });
+
+    it("shows default value for number option", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          port: { type: "number", default: 3000, description: "Port number" },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Port number");
+      expect(help).toContain(kleur.dim("(default: 3000)"));
+    });
+
+    it("shows default value for boolean option", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          verbose: { type: "boolean", default: true, description: "Verbose mode" },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Verbose mode");
+      expect(help).toContain(kleur.dim("(default: true)"));
+    });
+
+    it("does not show default suffix when no default", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          port: { type: "number", description: "Port number" },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Port number");
+      expect(help).not.toContain("(default:");
+    });
+
+    it("shows default alongside description", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          port: { type: "number", default: 8080, description: "Server port" },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain(`Server port ${kleur.dim("(default: 8080)")}`);
+    });
+  });
 });

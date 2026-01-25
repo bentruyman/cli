@@ -149,7 +149,10 @@ function formatOptionsWithTitle(options: NormalizedOptions, title: string): stri
   for (const { opt, valueSuffix, visualFlag } of entries) {
     const flagPart = formatFlag(opt, valueSuffix);
     const padding = " ".repeat(maxWidth - visualFlag.length + 2);
-    lines.push(`  ${flagPart}${padding}${opt.description ?? ""}`);
+    const description = opt.description ?? "";
+    const defaultSuffix =
+      opt.default !== undefined ? ` ${kleur.dim(`(default: ${opt.default})`)}` : "";
+    lines.push(`  ${flagPart}${padding}${description}${defaultSuffix}`);
   }
 
   return lines;
