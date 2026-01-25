@@ -74,11 +74,59 @@ export class MissingSubcommandError extends BaseError {
 export class UnknownSubcommandError extends BaseError {
   /** List of valid subcommand names */
   availableSubcommands: string[];
+  /** Suggested similar subcommands based on edit distance */
+  suggestions: string[];
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
 
-  constructor(subcommand: string, availableSubcommands: string[]) {
-    const available = availableSubcommands.join(", ");
-    super(`Unknown subcommand '${subcommand}'. Available: ${available}`);
+  constructor(
+    subcommand: string,
+    availableSubcommands: string[],
+    suggestions: string[] = [],
+    source?: ErrorSource,
+  ) {
+    let message: string;
+    if (suggestions.length > 0) {
+      message = `Unknown subcommand '${subcommand}'. Did you mean '${suggestions[0]}'?`;
+    } else {
+      const available = availableSubcommands.join(", ");
+      message = `Unknown subcommand '${subcommand}'. Available: ${available}`;
+    }
+    super(message);
     this.availableSubcommands = availableSubcommands;
+    this.suggestions = suggestions;
+    this.source = source;
+  }
+}
+
+/** Thrown when an unknown option/flag is provided */
+export class UnknownOptionError extends BaseError {
+  /** The unknown option that was provided */
+  unknownOption: string;
+  /** List of valid option names */
+  availableOptions: string[];
+  /** Suggested similar options based on edit distance */
+  suggestions: string[];
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(
+    unknownOption: string,
+    availableOptions: string[],
+    suggestions: string[] = [],
+    source?: ErrorSource,
+  ) {
+    let message: string;
+    if (suggestions.length > 0) {
+      message = `Unknown option '${unknownOption}'. Did you mean '${suggestions[0]}'?`;
+    } else {
+      message = `Unknown option '${unknownOption}'`;
+    }
+    super(message);
+    this.unknownOption = unknownOption;
+    this.availableOptions = availableOptions;
+    this.suggestions = suggestions;
+    this.source = source;
   }
 }
 

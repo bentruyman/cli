@@ -7,8 +7,10 @@ import {
   MissingOptionError,
   MissingSubcommandError,
   UnknownSubcommandError,
+  UnknownOptionError,
   ReservedOptionError,
 } from "./errors";
+import { findSuggestions } from "./suggestions";
 import { formatHelp, formatParentHelp } from "./help";
 import type {
   AnyCommand,
@@ -208,7 +210,9 @@ export class Command<
 
     const subcommand = this.getSubcommand(subcommandName);
     if (!subcommand) {
-      throw new UnknownSubcommandError(subcommandName, this.getSubcommandNames());
+      const available = this.getSubcommandNames();
+      const suggestions = findSuggestions(subcommandName, available);
+      throw new UnknownSubcommandError(subcommandName, available, suggestions, this);
     }
 
     const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
@@ -217,7 +221,7 @@ export class Command<
 
   private runLeaf(argv: string[], inheritedOptions: Record<string, unknown>): void | Promise<void> {
     const mergedOptionDefs = { ...this.inherits, ...this.options };
-    const parsed = this.parseArgvWithOptions(argv, mergedOptionDefs);
+    const parsed = this.parseArgvWithOptions(argv, mergedOptionDefs, true);
 
     const args = this.extractArgs(parsed);
     const ownOptions = this.extractOptionsFromDefs(parsed, this.options);
@@ -337,16 +341,30 @@ export class Command<
     return this.extractOptionsFromDefs(parsed, this.options) as OptionsToValues<O>;
   }
 
-  private parseArgvWithOptions(argv: string[], optionDefs: NormalizedOptions): mri.Argv {
+  private parseArgvWithOptions(
+    argv: string[],
+    optionDefs: NormalizedOptions,
+    throwOnUnknown = false,
+  ): mri.Argv {
     const booleanFlags: string[] = [];
     const stringFlags: string[] = [];
     const aliases: Record<string, string> = {};
+    const knownFlags = new Set<string>();
+
+    // Add built-in flags
+    knownFlags.add("help");
+    knownFlags.add("h");
+    knownFlags.add("version");
+    knownFlags.add("V");
 
     for (const opt of Object.values(optionDefs)) {
+      knownFlags.add(opt.long);
+
       if (opt.type === "boolean") {
         booleanFlags.push(opt.long);
         if (opt.negatable) {
           booleanFlags.push(`no-${opt.long}`);
+          knownFlags.add(`no-${opt.long}`);
         }
       } else {
         stringFlags.push(opt.long);
@@ -354,14 +372,32 @@ export class Command<
 
       if (opt.short) {
         aliases[opt.short] = opt.long;
+        knownFlags.add(opt.short);
       }
     }
 
-    return mri(argv, {
+    const result = mri(argv, {
       boolean: booleanFlags,
       string: stringFlags,
       alias: aliases,
     });
+
+    // Check for unknown flags after parsing by comparing parsed keys against known flags
+    // Only throw for unknown flags in leaf commands (not parent commands)
+    // Parent commands pass unknown flags through to subcommands
+    if (throwOnUnknown) {
+      for (const key of Object.keys(result)) {
+        if (key !== "_" && !knownFlags.has(key)) {
+          const availableOptions = Array.from(knownFlags).filter(
+            (f) => f.length > 1 && f !== "help" && f !== "version",
+          );
+          const suggestions = findSuggestions(key, availableOptions);
+          throw new UnknownOptionError(key, availableOptions, suggestions, this);
+        }
+      }
+    }
+
+    return result;
   }
 
   private coerceToNumber(value: unknown, key: string): number {

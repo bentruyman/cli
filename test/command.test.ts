@@ -9,6 +9,7 @@ import {
   MissingOptionError,
   MissingSubcommandError,
   UnknownSubcommandError,
+  UnknownOptionError,
   ReservedOptionError,
 } from "../src/errors";
 
@@ -1473,6 +1474,172 @@ describe("subcommands", () => {
       expect(capturedCount).toBe(42);
       expect(capturedName).toBe("test");
       expect(capturedOwn).toBeTrue();
+    });
+  });
+
+  describe("suggestions", () => {
+    describe("subcommands", () => {
+      it("includes suggestions in UnknownSubcommandError for typos", () => {
+        const add = command({
+          name: "add",
+          handler: () => {},
+        });
+
+        const list = command({
+          name: "list",
+          handler: () => {},
+        });
+
+        const remove = command({
+          name: "remove",
+          handler: () => {},
+        });
+
+        const cli = command({
+          name: "cli",
+          subcommands: [add, list, remove],
+        });
+
+        try {
+          cli.run(["addd"]);
+          expect.unreachable("Should have thrown");
+        } catch (error) {
+          expect(error).toBeInstanceOf(UnknownSubcommandError);
+          const e = error as UnknownSubcommandError;
+          expect(e.suggestions).toContain("add");
+          expect(e.message).toContain("Did you mean 'add'?");
+        }
+      });
+
+      it("falls back to available list when no good suggestions", () => {
+        const add = command({
+          name: "add",
+          handler: () => {},
+        });
+
+        const cli = command({
+          name: "cli",
+          subcommands: [add],
+        });
+
+        try {
+          cli.run(["xyz"]);
+          expect.unreachable("Should have thrown");
+        } catch (error) {
+          expect(error).toBeInstanceOf(UnknownSubcommandError);
+          const e = error as UnknownSubcommandError;
+          expect(e.suggestions).toEqual([]);
+          expect(e.message).toContain("Available: add");
+        }
+      });
+    });
+
+    describe("unknown options", () => {
+      it("throws UnknownOptionError for unknown long flag", () => {
+        const cmd = command({
+          name: "test",
+          options: {
+            verbose: { type: "boolean", long: "verbose" },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["--unknown"])).toThrow(UnknownOptionError);
+      });
+
+      it("throws UnknownOptionError for unknown short flag", () => {
+        const cmd = command({
+          name: "test",
+          options: {
+            verbose: { type: "boolean", long: "verbose", short: "v" },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["-x"])).toThrow(UnknownOptionError);
+      });
+
+      it("includes suggestions for typos in flags", () => {
+        const cmd = command({
+          name: "test",
+          options: {
+            verbose: { type: "boolean", long: "verbose" },
+            debug: { type: "boolean", long: "debug" },
+          },
+          handler: () => {},
+        });
+
+        try {
+          cmd.run(["--vrebose"]);
+          expect.unreachable("Should have thrown");
+        } catch (error) {
+          expect(error).toBeInstanceOf(UnknownOptionError);
+          const e = error as UnknownOptionError;
+          expect(e.suggestions).toContain("verbose");
+          expect(e.message).toContain("Did you mean 'verbose'?");
+        }
+      });
+
+      it("does not throw for known flags", () => {
+        let executed = false;
+
+        const cmd = command({
+          name: "test",
+          options: {
+            verbose: { type: "boolean", long: "verbose", short: "v" },
+          },
+          handler: () => {
+            executed = true;
+          },
+        });
+
+        cmd.run(["--verbose"]);
+        expect(executed).toBeTrue();
+      });
+
+      it("does not throw for built-in --help flag", () => {
+        const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+        const cmd = command({
+          name: "test",
+          handler: () => {},
+        });
+
+        run(cmd, ["--help"]);
+
+        stdoutSpy.mockRestore();
+      });
+
+      it("does not throw for built-in --version flag", () => {
+        const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+        const cmd = command({
+          name: "test",
+          version: "1.0.0",
+          handler: () => {},
+        });
+
+        run(cmd, ["--version"]);
+
+        stdoutSpy.mockRestore();
+      });
+
+      it("recognizes negatable boolean flags as valid", () => {
+        let receivedColor = true;
+
+        const cmd = command({
+          name: "test",
+          options: {
+            color: { type: "boolean", long: "color", negatable: true },
+          },
+          handler: (_, { color }) => {
+            receivedColor = color;
+          },
+        });
+
+        cmd.run(["--no-color"]);
+        expect(receivedColor).toBeFalse();
+      });
     });
   });
 });

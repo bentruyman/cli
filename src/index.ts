@@ -8,6 +8,7 @@ import {
   MissingOptionError,
   MissingSubcommandError,
   UnknownSubcommandError,
+  UnknownOptionError,
 } from "./errors";
 import type { AnyCommand } from "./types";
 
@@ -18,6 +19,7 @@ export {
   MissingArgumentError,
   MissingOptionError,
   MissingSubcommandError,
+  UnknownOptionError,
   UnknownSubcommandError,
 };
 export type {
@@ -70,6 +72,8 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
   } else if (error instanceof MissingSubcommandError) {
     stderr(cmd.help());
   } else if (error instanceof UnknownSubcommandError) {
+    stderr(kleur.red(`Error: ${error.message}`));
+  } else if (error instanceof UnknownOptionError) {
     stderr(kleur.red(`Error: ${error.message}`));
   } else if (error instanceof InvalidOptionError) {
     const source = error.source ?? cmd;
