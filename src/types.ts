@@ -105,6 +105,20 @@ export type NormalizedOption = Option & { long: string };
 /** Record of normalized options */
 export type NormalizedOptions = Record<string, NormalizedOption>;
 
+/**
+ * Maps group names to arrays of subcommand names for organized help output.
+ * Groups are displayed in definition order, with ungrouped commands appearing last.
+ *
+ * @example
+ * ```typescript
+ * const groups: CommandGroups = {
+ *   'Project': ['init', 'build', 'test'],
+ *   'Development': ['serve', 'watch'],
+ * };
+ * ```
+ */
+export type CommandGroups = Record<string, string[]>;
+
 /** Converts positional arg definitions to a tuple of their runtime value types */
 export type ArgsToValues<T extends readonly PositionalArg[]> = {
   [K in keyof T]: T[K] extends { type: infer U extends keyof TypeMap; variadic: true }
@@ -222,6 +236,12 @@ export type ParentCommandOptions<O extends Options = Options> = BaseCommandOptio
   subcommands: AnyCommand[];
   /** Options that are parsed at this level and passed to subcommands */
   options?: O;
+  /**
+   * Optional grouping of subcommands for help display.
+   * Keys are group names, values are arrays of subcommand names.
+   * Grouped commands appear first in definition order; ungrouped commands appear last.
+   */
+  groups?: CommandGroups;
   /** Must be undefined for parent commands */
   handler?: never;
   /** Must be undefined for parent commands */

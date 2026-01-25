@@ -96,6 +96,7 @@ HELLO, ADA!
 | `inherits`    | `Options`                 | No       | Options inherited from parents |
 | `handler`     | `(args, options) => void` | \*       | Your code goes here            |
 | `subcommands` | `Command[]`               | \*       | Nested commands                |
+| `groups`      | `CommandGroups`           | No       | Group subcommands in help      |
 
 \* A command has either `handler` OR `subcommands`, never both.
 
@@ -151,6 +152,45 @@ $ git remote add https://github.com/... --verbose
 ```
 
 The `inherits` property tells the leaf command which parent options it should parse and receive in its handler. This enables full type inference for inherited options.
+
+### Command Groups
+
+Organize subcommands into groups for cleaner help output:
+
+```typescript
+const cli = command({
+  name: "my-cli",
+  groups: {
+    "Project": ["init", "build", "test"],
+    "Development": ["serve", "watch"],
+  },
+  subcommands: [init, build, test, serve, watch, help],
+});
+```
+
+```
+$ my-cli --help
+
+Usage:
+  my-cli [options] <command> [args...]
+
+Project:
+  init    Initialize a new project
+  build   Build the project
+  test    Run tests
+
+Development:
+  serve   Start development server
+  watch   Watch for changes
+
+  help    Show help
+
+Options:
+  -h, --help     Show help
+  -V, --version  Show version
+```
+
+Groups appear in definition order. Commands not assigned to any group appear last without a header. This is optional—omit `groups` for a flat command list.
 
 ### Positional Args
 

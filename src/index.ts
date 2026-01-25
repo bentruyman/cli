@@ -24,6 +24,7 @@ export {
 };
 export type {
   AnyCommand,
+  CommandGroups,
   CommandOptions,
   LeafCommandOptions,
   MergeOptions,

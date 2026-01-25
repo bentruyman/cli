@@ -15,6 +15,7 @@ import { formatHelp, formatParentHelp } from "./help";
 import type {
   AnyCommand,
   ArgsToValues,
+  CommandGroups,
   CommandOptions,
   LeafCommandOptions,
   MergeOptions,
@@ -78,6 +79,8 @@ export class Command<
   readonly handler?: (args: ArgsToValues<T>, options: OptionsToValues<MergeOptions<I, O>>) => void;
   /** Map of subcommands for parent commands */
   readonly subcommands?: Map<string, AnyCommand>;
+  /** Group definitions for organizing subcommands in help output */
+  readonly groups?: CommandGroups;
 
   constructor(cmdOptions: CommandOptions<T, O, I>) {
     this.name = cmdOptions.name;
@@ -92,6 +95,11 @@ export class Command<
       this.args = [] as unknown as T;
       this.inherits = {};
       this.subcommands = new Map(cmdOptions.subcommands.map((cmd) => [cmd.name, cmd]));
+
+      if (cmdOptions.groups) {
+        this.validateGroups(cmdOptions.groups);
+        this.groups = cmdOptions.groups;
+      }
     } else {
       this.args = cmdOptions.args ?? ([] as unknown as T);
       this.inherits = normalizeOptions(cmdOptions.inherits ?? {});
@@ -136,6 +144,23 @@ export class Command<
     }
   }
 
+  private validateGroups(groups: CommandGroups): void {
+    const subcommandNames = new Set(this.subcommands!.keys());
+    const assignedCommands = new Set<string>();
+
+    for (const [groupName, commandNames] of Object.entries(groups)) {
+      for (const cmdName of commandNames) {
+        if (!subcommandNames.has(cmdName)) {
+          throw new Error(`Group '${groupName}' references unknown subcommand '${cmdName}'`);
+        }
+        if (assignedCommands.has(cmdName)) {
+          throw new Error(`Subcommand '${cmdName}' is assigned to multiple groups`);
+        }
+        assignedCommands.add(cmdName);
+      }
+    }
+  }
+
   /** Returns true if this command has subcommands (is a parent command) */
   isParent(): boolean {
     return this.subcommands !== undefined && this.subcommands.size > 0;
@@ -162,6 +187,7 @@ export class Command<
         description: this.description,
         options: this.options,
         subcommands: this.subcommands,
+        groups: this.groups,
       });
     }
     return formatHelp(this);

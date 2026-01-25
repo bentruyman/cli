@@ -1,6 +1,6 @@
 import kleur from "kleur";
 
-import type { AnyCommand, NormalizedOptions, PositionalArg, TypeMap } from "./types";
+import type { AnyCommand, CommandGroups, NormalizedOptions, PositionalArg, TypeMap } from "./types";
 
 const VALUE_SUFFIXES: Record<keyof TypeMap, string> = {
   number: "=<num>",
@@ -26,6 +26,7 @@ export interface ParentCommandInfo {
   description?: string;
   options: NormalizedOptions;
   subcommands: Map<string, AnyCommand>;
+  groups?: CommandGroups;
 }
 
 export function formatHelp(command: CommandInfo): string {
@@ -145,15 +146,18 @@ export function formatParentHelp(command: ParentCommandInfo): string {
   );
   output.push("");
 
-  // List subcommands
-  output.push(kleur.bold("Commands:"));
   const subcommandEntries = Array.from(command.subcommands.values());
   const maxNameLen =
     subcommandEntries.length > 0 ? Math.max(...subcommandEntries.map((s) => s.name.length)) : 0;
 
-  for (const sub of subcommandEntries) {
-    const padding = " ".repeat(maxNameLen - sub.name.length + 2);
-    output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+  if (command.groups && Object.keys(command.groups).length > 0) {
+    output.push(...formatGroupedCommands(command, maxNameLen));
+  } else {
+    output.push(kleur.bold("Commands:"));
+    for (const sub of subcommandEntries) {
+      const padding = " ".repeat(maxNameLen - sub.name.length + 2);
+      output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+    }
   }
 
   output.push("");
@@ -161,4 +165,46 @@ export function formatParentHelp(command: ParentCommandInfo): string {
   output.push(...formatOptions(mergedOptions));
 
   return output.join("\n");
+}
+
+function formatGroupedCommands(command: ParentCommandInfo, maxNameLen: number): string[] {
+  const output: string[] = [];
+  const groups = command.groups!;
+  const subcommands = command.subcommands;
+
+  const displayedCommands = new Set<string>();
+
+  for (const [groupName, commandNames] of Object.entries(groups)) {
+    if (commandNames.length === 0) continue;
+
+    output.push(kleur.bold(`${groupName}:`));
+
+    for (const cmdName of commandNames) {
+      const sub = subcommands.get(cmdName);
+      if (sub) {
+        const padding = " ".repeat(maxNameLen - sub.name.length + 2);
+        output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+        displayedCommands.add(cmdName);
+      }
+    }
+
+    output.push("");
+  }
+
+  const ungroupedCommands = Array.from(subcommands.values()).filter(
+    (sub) => !displayedCommands.has(sub.name),
+  );
+
+  if (ungroupedCommands.length > 0) {
+    for (const sub of ungroupedCommands) {
+      const padding = " ".repeat(maxNameLen - sub.name.length + 2);
+      output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+    }
+  }
+
+  if (output.length > 0 && output[output.length - 1] === "") {
+    output.pop();
+  }
+
+  return output;
 }

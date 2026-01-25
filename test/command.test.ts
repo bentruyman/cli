@@ -1642,4 +1642,73 @@ describe("subcommands", () => {
       });
     });
   });
+
+  describe("groups", () => {
+    it("stores groups property on command", () => {
+      const init = command({ name: "init", handler: () => {} });
+      const build = command({ name: "build", handler: () => {} });
+
+      const cli = command({
+        name: "cli",
+        groups: {
+          Project: ["init", "build"],
+        },
+        subcommands: [init, build],
+      });
+
+      expect(cli.groups).toEqual({ Project: ["init", "build"] });
+    });
+
+    it("throws error when group references unknown subcommand", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      expect(() =>
+        command({
+          name: "cli",
+          groups: {
+            Project: ["init", "unknown"],
+          },
+          subcommands: [init],
+        }),
+      ).toThrow("Group 'Project' references unknown subcommand 'unknown'");
+    });
+
+    it("throws error when command is assigned to multiple groups", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      expect(() =>
+        command({
+          name: "cli",
+          groups: {
+            Project: ["init"],
+            Other: ["init"],
+          },
+          subcommands: [init],
+        }),
+      ).toThrow("Subcommand 'init' is assigned to multiple groups");
+    });
+
+    it("allows undefined groups", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [init],
+      });
+
+      expect(cli.groups).toBeUndefined();
+    });
+
+    it("allows empty groups object", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      const cli = command({
+        name: "cli",
+        groups: {},
+        subcommands: [init],
+      });
+
+      expect(cli.groups).toEqual({});
+    });
+  });
 });

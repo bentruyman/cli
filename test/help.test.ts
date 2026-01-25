@@ -196,4 +196,150 @@ ${kleur.bold("Options:")}
 
     expect(help).toContain("-c, --[no-]color");
   });
+
+  describe("command grouping", () => {
+    it("displays grouped commands with bold headers", () => {
+      const init = command({ name: "init", description: "Initialize project", handler: () => {} });
+      const build = command({ name: "build", description: "Build project", handler: () => {} });
+      const serve = command({ name: "serve", description: "Start dev server", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Project: ["init", "build"],
+          Development: ["serve"],
+        },
+        subcommands: [init, build, serve],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Project:"));
+      expect(help).toContain(kleur.bold("Development:"));
+      expect(help).toContain("init");
+      expect(help).toContain("Initialize project");
+      expect(help).toContain("build");
+      expect(help).toContain("serve");
+    });
+
+    it("displays commands in group definition order", () => {
+      const alpha = command({ name: "alpha", handler: () => {} });
+      const beta = command({ name: "beta", handler: () => {} });
+      const gamma = command({ name: "gamma", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Second: ["beta"],
+          First: ["alpha"],
+          Third: ["gamma"],
+        },
+        subcommands: [alpha, beta, gamma],
+      });
+
+      const help = cli.help();
+
+      const secondIdx = help.indexOf("Second:");
+      const firstIdx = help.indexOf("First:");
+      const thirdIdx = help.indexOf("Third:");
+
+      expect(secondIdx).toBeLessThan(firstIdx);
+      expect(firstIdx).toBeLessThan(thirdIdx);
+    });
+
+    it("displays ungrouped commands last without header", () => {
+      const init = command({ name: "init", description: "Initialize", handler: () => {} });
+      const build = command({ name: "build", description: "Build", handler: () => {} });
+      const help_cmd = command({ name: "help", description: "Show help", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Project: ["init", "build"],
+        },
+        subcommands: [init, build, help_cmd],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Project:"));
+      expect(help).toContain("help");
+      expect(help).toContain("Show help");
+
+      const projectIdx = help.indexOf("Project:");
+      const helpIdx = help.indexOf("help");
+      expect(projectIdx).toBeLessThan(helpIdx);
+    });
+
+    it("falls back to flat list when groups is empty object", () => {
+      const init = command({ name: "init", handler: () => {} });
+      const build = command({ name: "build", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {},
+        subcommands: [init, build],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Commands:"));
+      expect(help).not.toContain("Project:");
+    });
+
+    it("falls back to flat list when groups is undefined", () => {
+      const init = command({ name: "init", handler: () => {} });
+      const build = command({ name: "build", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        subcommands: [init, build],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Commands:"));
+    });
+
+    it("skips empty groups", () => {
+      const init = command({ name: "init", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Empty: [],
+          Project: ["init"],
+        },
+        subcommands: [init],
+      });
+
+      const help = cli.help();
+
+      expect(help).not.toContain("Empty:");
+      expect(help).toContain("Project:");
+    });
+
+    it("displays commands within groups in array order", () => {
+      const alpha = command({ name: "alpha", handler: () => {} });
+      const beta = command({ name: "beta", handler: () => {} });
+      const gamma = command({ name: "gamma", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Letters: ["gamma", "alpha", "beta"],
+        },
+        subcommands: [alpha, beta, gamma],
+      });
+
+      const help = cli.help();
+
+      const gammaIdx = help.indexOf("gamma");
+      const alphaIdx = help.indexOf("alpha");
+      const betaIdx = help.indexOf("beta");
+
+      expect(gammaIdx).toBeLessThan(alphaIdx);
+      expect(alphaIdx).toBeLessThan(betaIdx);
+    });
+  });
 });
