@@ -614,6 +614,47 @@ ${kleur.bold("Options:")}
     });
   });
 
+  describe("environment variables", () => {
+    it("shows env var hint for options", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          token: {
+            type: "string",
+            env: "API_TOKEN",
+            description: "Authentication token",
+          },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Authentication token");
+      expect(help).toContain(kleur.dim("[$API_TOKEN]"));
+    });
+
+    it("shows both default and env var", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          port: {
+            type: "number",
+            default: 3000,
+            env: "PORT",
+            description: "Port number",
+          },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain(kleur.dim("(default: 3000)"));
+      expect(help).toContain(kleur.dim("[$PORT]"));
+    });
+  });
+
   describe("hidden commands", () => {
     it("excludes hidden subcommands from help", () => {
       const visible = command({

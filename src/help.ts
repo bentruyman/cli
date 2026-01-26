@@ -163,7 +163,8 @@ function formatOptionsWithTitle(options: NormalizedOptions, title: string): stri
     const description = opt.description ?? "";
     const defaultSuffix =
       opt.default !== undefined ? ` ${kleur.dim(`(default: ${opt.default})`)}` : "";
-    lines.push(`  ${flagPart}${padding}${description}${defaultSuffix}`);
+    const envSuffix = opt.env ? ` ${kleur.dim(`[$${opt.env}]`)}` : "";
+    lines.push(`  ${flagPart}${padding}${description}${defaultSuffix}${envSuffix}`);
   }
 
   return lines;

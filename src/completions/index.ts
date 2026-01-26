@@ -52,6 +52,7 @@ function collectOptions(options: NormalizedOptions): OptionData[] {
     type: opt.type,
     description: opt.description,
     choices: opt.choices,
+    env: opt.env,
   }));
 }
 

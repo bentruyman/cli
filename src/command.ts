@@ -490,6 +490,33 @@ export class Command<
     }
   }
 
+  private getEnvValue(
+    opt: NormalizedOptions[string],
+    key: string,
+  ): string | number | boolean | undefined {
+    if (!opt.env) return undefined;
+
+    const envValue = process.env[opt.env];
+    if (envValue === undefined) return undefined;
+
+    switch (opt.type) {
+      case "number": {
+        const numValue = Number(envValue);
+        if (isNaN(numValue)) {
+          throw new InvalidOptionError(
+            `Environment variable ${opt.env} for ${key} must be a number`,
+            this,
+          );
+        }
+        return numValue;
+      }
+      case "boolean":
+        return ["1", "true", "yes"].includes(envValue.toLowerCase());
+      default:
+        return envValue;
+    }
+  }
+
   private extractMultipleOptionValue(
     value: unknown,
     opt: NormalizedOptions[string],
@@ -505,6 +532,7 @@ export class Command<
   private extractNegatableBoolean(
     parsed: mri.Argv,
     opt: NormalizedOptions[string],
+    key: string,
   ): boolean | undefined {
     const negatedValue = parsed[`no-${opt.long}`];
     if (negatedValue === true) {
@@ -513,6 +541,11 @@ export class Command<
     const value = parsed[opt.long];
     if (value !== undefined) {
       return value as boolean;
+    }
+    // Check env var before default
+    const envValue = this.getEnvValue(opt, key);
+    if (envValue !== undefined) {
+      return envValue as boolean;
     }
     return opt.default as boolean | undefined;
   }
@@ -543,12 +576,27 @@ export class Command<
         if (value !== undefined) {
           optionValues[key] = this.coerceToNumber(value, key);
         } else {
-          optionValues[key] = opt.default;
+          const envValue = this.getEnvValue(opt, key);
+          optionValues[key] = envValue !== undefined ? envValue : opt.default;
         }
       } else if (opt.type === "boolean" && opt.negatable) {
-        optionValues[key] = this.extractNegatableBoolean(parsed, opt);
+        optionValues[key] = this.extractNegatableBoolean(parsed, opt, key);
+      } else if (opt.type === "boolean") {
+        // For non-negatable booleans, check env var when CLI not provided
+        if (value !== undefined) {
+          optionValues[key] = value;
+        } else {
+          const envValue = this.getEnvValue(opt, key);
+          optionValues[key] = envValue !== undefined ? envValue : opt.default;
+        }
       } else {
-        optionValues[key] = value !== undefined ? value : opt.default;
+        // String type
+        if (value !== undefined) {
+          optionValues[key] = value;
+        } else {
+          const envValue = this.getEnvValue(opt, key);
+          optionValues[key] = envValue !== undefined ? envValue : opt.default;
+        }
       }
 
       if (opt.required && optionValues[key] === undefined) {

@@ -1343,6 +1343,264 @@ describe("command", () => {
         expect(receivedValue).toBeUndefined();
       });
     });
+
+    describe("environment variables", () => {
+      it("uses env var when CLI not provided", () => {
+        let receivedValue: string | undefined;
+
+        process.env.TEST_TOKEN = "secret123";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            token: {
+              type: "string",
+              env: "TEST_TOKEN",
+            },
+          },
+          handler: (_, { token }) => {
+            receivedValue = token;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBe("secret123");
+
+        delete process.env.TEST_TOKEN;
+      });
+
+      it("CLI overrides env var", () => {
+        let receivedValue: string | undefined;
+
+        process.env.TEST_TOKEN = "env-value";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            token: {
+              type: "string",
+              env: "TEST_TOKEN",
+            },
+          },
+          handler: (_, { token }) => {
+            receivedValue = token;
+          },
+        });
+
+        cmd.run(["--token", "cli-value"]);
+
+        expect(receivedValue).toBe("cli-value");
+
+        delete process.env.TEST_TOKEN;
+      });
+
+      it("uses default when neither CLI nor env var provided", () => {
+        let receivedValue: string | undefined;
+
+        delete process.env.TEST_TOKEN;
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            token: {
+              type: "string",
+              env: "TEST_TOKEN",
+              default: "default-value",
+            },
+          },
+          handler: (_, { token }) => {
+            receivedValue = token;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBe("default-value");
+      });
+
+      it("parses number env var", () => {
+        let receivedValue: number | undefined;
+
+        process.env.TEST_PORT = "8080";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              env: "TEST_PORT",
+            },
+          },
+          handler: (_, { port }) => {
+            receivedValue = port;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBe(8080);
+        expect(typeof receivedValue).toBe("number");
+
+        delete process.env.TEST_PORT;
+      });
+
+      it("throws for invalid number env var", () => {
+        process.env.TEST_PORT = "not-a-number";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              env: "TEST_PORT",
+            },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run([])).toThrow(InvalidOptionError);
+        expect(() => cmd.run([])).toThrow("must be a number");
+
+        delete process.env.TEST_PORT;
+      });
+
+      it("parses boolean env var - true values", () => {
+        const trueValues = ["1", "true", "yes", "TRUE", "True", "YES"];
+
+        for (const value of trueValues) {
+          let receivedValue: boolean | undefined;
+
+          process.env.TEST_VERBOSE = value;
+
+          const cmd = command({
+            name: "my-cli",
+            options: {
+              verbose: {
+                type: "boolean",
+                env: "TEST_VERBOSE",
+              },
+            },
+            handler: (_, { verbose }) => {
+              receivedValue = verbose;
+            },
+          });
+
+          cmd.run([]);
+
+          expect(receivedValue).toBe(true);
+
+          delete process.env.TEST_VERBOSE;
+        }
+      });
+
+      it("parses boolean env var - false values", () => {
+        const falseValues = ["0", "false", "no", "anything-else"];
+
+        for (const value of falseValues) {
+          let receivedValue: boolean | undefined;
+
+          process.env.TEST_VERBOSE = value;
+
+          const cmd = command({
+            name: "my-cli",
+            options: {
+              verbose: {
+                type: "boolean",
+                env: "TEST_VERBOSE",
+              },
+            },
+            handler: (_, { verbose }) => {
+              receivedValue = verbose;
+            },
+          });
+
+          cmd.run([]);
+
+          expect(receivedValue).toBe(false);
+
+          delete process.env.TEST_VERBOSE;
+        }
+      });
+
+      it("env var overrides default", () => {
+        let receivedValue: string | undefined;
+
+        process.env.TEST_TOKEN = "env-value";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            token: {
+              type: "string",
+              env: "TEST_TOKEN",
+              default: "default-value",
+            },
+          },
+          handler: (_, { token }) => {
+            receivedValue = token;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBe("env-value");
+
+        delete process.env.TEST_TOKEN;
+      });
+
+      it("works with negatable boolean and env var", () => {
+        let receivedValue: boolean | undefined;
+
+        process.env.TEST_COLOR = "true";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            color: {
+              type: "boolean",
+              negatable: true,
+              env: "TEST_COLOR",
+            },
+          },
+          handler: (_, { color }) => {
+            receivedValue = color;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBe(true);
+
+        delete process.env.TEST_COLOR;
+      });
+
+      it("CLI --no-flag overrides env var", () => {
+        let receivedValue: boolean | undefined;
+
+        process.env.TEST_COLOR = "true";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            color: {
+              type: "boolean",
+              negatable: true,
+              env: "TEST_COLOR",
+            },
+          },
+          handler: (_, { color }) => {
+            receivedValue = color;
+          },
+        });
+
+        cmd.run(["--no-color"]);
+
+        expect(receivedValue).toBe(false);
+
+        delete process.env.TEST_COLOR;
+      });
+    });
   });
 
   describe("full", () => {

@@ -16,6 +16,7 @@ export interface OptionData {
   type: "string" | "number" | "boolean";
   description?: string;
   choices?: readonly (string | number | boolean)[];
+  env?: string;
 }
 
 export type Shell = "bash" | "zsh" | "fish";

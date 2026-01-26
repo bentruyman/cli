@@ -103,6 +103,16 @@ export type Option = {
    */
   placeholder?: string;
   /**
+   * Environment variable name to use as fallback when option is not provided via CLI.
+   * Precedence: CLI argument > environment variable > default value.
+   * @example
+   * ```typescript
+   * { token: { type: "string", env: "API_TOKEN" } }
+   * // Value can come from --token or API_TOKEN env var
+   * ```
+   */
+  env?: string;
+  /**
    * If true, allows --no-<flag> syntax to explicitly set false.
    * Only valid for boolean options.
    * @example
