@@ -537,4 +537,80 @@ ${kleur.bold("Options:")}
       expect(help).toContain(`Server port ${kleur.dim("(default: 8080)")}`);
     });
   });
+
+  describe("hidden commands", () => {
+    it("excludes hidden subcommands from help", () => {
+      const visible = command({
+        name: "visible",
+        description: "Visible command",
+        handler: () => {},
+      });
+      const hidden = command({
+        name: "hidden",
+        description: "Hidden command",
+        hidden: true,
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        subcommands: [visible, hidden],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain("visible");
+      expect(help).toContain("Visible command");
+      expect(help).not.toContain("hidden");
+      expect(help).not.toContain("Hidden command");
+    });
+
+    it("excludes hidden commands from grouped help", () => {
+      const visible = command({ name: "visible", description: "Visible", handler: () => {} });
+      const hidden = command({
+        name: "hidden",
+        description: "Hidden",
+        hidden: true,
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Commands: ["visible", "hidden"],
+        },
+        subcommands: [visible, hidden],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain("visible");
+      expect(help).not.toContain("hidden");
+    });
+
+    it("excludes hidden commands from ungrouped section", () => {
+      const grouped = command({ name: "grouped", handler: () => {} });
+      const visible = command({ name: "visible", description: "Visible", handler: () => {} });
+      const hidden = command({
+        name: "hidden",
+        description: "Hidden",
+        hidden: true,
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Main: ["grouped"],
+        },
+        subcommands: [grouped, visible, hidden],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain("grouped");
+      expect(help).toContain("visible");
+      expect(help).not.toContain("hidden");
+    });
+  });
 });

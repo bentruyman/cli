@@ -1,6 +1,7 @@
 import kleur from "kleur";
 
 import { command, Command } from "./command";
+import { generateCompletions, type Shell } from "./completions";
 import {
   MissingArgumentError,
   InvalidArgumentError,
@@ -42,6 +43,17 @@ function stdout(message: string): void {
 
 function stderr(message: string): void {
   process.stderr.write(message + "\n");
+}
+
+const VALID_SHELLS: Shell[] = ["bash", "zsh", "fish"];
+
+function handleCompletions(cmd: Command<any, any, any>, argv: string[]): void {
+  const shell = argv[0];
+  if (!shell || !VALID_SHELLS.includes(shell as Shell)) {
+    stderr(`Usage: ${cmd.name} completions <bash|zsh|fish>`);
+    return;
+  }
+  stdout(generateCompletions(cmd, shell as Shell));
 }
 
 function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
@@ -122,6 +134,12 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function run(cmd: Command<any, any, any>, argv: string[]): Promise<void> {
+  // Handle completions subcommand
+  if (argv[0] === "completions") {
+    handleCompletions(cmd, argv.slice(1));
+    return;
+  }
+
   if (argv.includes("--version") || argv.includes("-V")) {
     if (cmd.version) {
       stdout(cmd.version);

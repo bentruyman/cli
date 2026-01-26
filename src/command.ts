@@ -70,6 +70,8 @@ export class Command<
   readonly description?: string;
   /** Version string shown with --version flag */
   readonly version?: string;
+  /** Whether command is hidden from help output */
+  readonly hidden?: boolean;
   /** Positional argument definitions */
   readonly args: T;
   /** Option definitions (normalized with long names) */
@@ -89,6 +91,7 @@ export class Command<
     this.name = cmdOptions.name;
     this.description = cmdOptions.description;
     this.version = cmdOptions.version;
+    this.hidden = cmdOptions.hidden;
     this.examples = cmdOptions.examples;
     this.options = normalizeOptions(cmdOptions.options ?? {});
 

@@ -175,6 +175,8 @@ type BaseCommandOptions = {
   version?: string;
   /** Examples shown in help output, after description and before usage */
   examples?: Examples;
+  /** If true, command is hidden from help output (e.g., for internal commands like completions) */
+  hidden?: boolean;
 };
 
 /**
@@ -229,6 +231,7 @@ export type LeafCommandOptions<
 export interface AnyCommand {
   readonly name: string;
   readonly description?: string;
+  readonly hidden?: boolean;
   readonly options: NormalizedOptions;
   /** Execute the command with the given arguments */
   run(argv: string[], inheritedOptions?: Record<string, unknown>): void | Promise<void>;

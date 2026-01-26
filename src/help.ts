@@ -191,7 +191,7 @@ export function formatParentHelp(command: ParentCommandInfo): string {
   );
   output.push("");
 
-  const subcommandEntries = Array.from(command.subcommands.values());
+  const subcommandEntries = Array.from(command.subcommands.values()).filter((sub) => !sub.hidden);
   const maxNameLen =
     subcommandEntries.length > 0 ? Math.max(...subcommandEntries.map((s) => s.name.length)) : 0;
 
@@ -226,7 +226,7 @@ function formatGroupedCommands(command: ParentCommandInfo, maxNameLen: number): 
 
     for (const cmdName of commandNames) {
       const sub = subcommands.get(cmdName);
-      if (sub) {
+      if (sub && !sub.hidden) {
         const padding = " ".repeat(maxNameLen - sub.name.length + 2);
         output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
         displayedCommands.add(cmdName);
@@ -237,7 +237,7 @@ function formatGroupedCommands(command: ParentCommandInfo, maxNameLen: number): 
   }
 
   const ungroupedCommands = Array.from(subcommands.values()).filter(
-    (sub) => !displayedCommands.has(sub.name),
+    (sub) => !displayedCommands.has(sub.name) && !sub.hidden,
   );
 
   if (ungroupedCommands.length > 0) {
