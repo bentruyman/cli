@@ -655,6 +655,67 @@ ${kleur.bold("Options:")}
     });
   });
 
+  describe("command aliases", () => {
+    it("shows aliases after command name", () => {
+      const checkout = command({
+        name: "checkout",
+        aliases: ["co", "switch"],
+        description: "Switch branches",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "git",
+        subcommands: [checkout],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.yellow("checkout (co, switch)"));
+      expect(help).toContain("Switch branches");
+    });
+
+    it("does not show parentheses when no aliases", () => {
+      const checkout = command({
+        name: "checkout",
+        description: "Switch branches",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "git",
+        subcommands: [checkout],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.yellow("checkout"));
+      expect(help).not.toContain("checkout (");
+    });
+
+    it("shows aliases in grouped commands", () => {
+      const checkout = command({
+        name: "checkout",
+        aliases: ["co"],
+        description: "Switch branches",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "git",
+        groups: {
+          Branching: ["checkout"],
+        },
+        subcommands: [checkout],
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Branching:"));
+      expect(help).toContain(kleur.yellow("checkout (co)"));
+    });
+  });
+
   describe("hidden commands", () => {
     it("excludes hidden subcommands from help", () => {
       const visible = command({

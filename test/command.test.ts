@@ -15,6 +15,117 @@ import {
   InvalidChoiceError,
 } from "../src/errors";
 
+describe("command aliases", () => {
+  it("invokes subcommand by alias", () => {
+    let called = false;
+
+    const checkout = command({
+      name: "checkout",
+      aliases: ["co", "switch"],
+      handler: () => {
+        called = true;
+      },
+    });
+
+    const cli = command({
+      name: "git",
+      subcommands: [checkout],
+    });
+
+    cli.run(["co"]);
+
+    expect(called).toBe(true);
+  });
+
+  it("invokes subcommand by any alias", () => {
+    let callCount = 0;
+
+    const checkout = command({
+      name: "checkout",
+      aliases: ["co", "switch"],
+      handler: () => {
+        callCount++;
+      },
+    });
+
+    const cli = command({
+      name: "git",
+      subcommands: [checkout],
+    });
+
+    cli.run(["checkout"]);
+    cli.run(["co"]);
+    cli.run(["switch"]);
+
+    expect(callCount).toBe(3);
+  });
+
+  it("passes args to aliased subcommand", () => {
+    let receivedBranch: string | undefined;
+
+    const checkout = command({
+      name: "checkout",
+      aliases: ["co"],
+      args: [{ name: "branch", type: "string" }] as const,
+      handler: ([branch]) => {
+        receivedBranch = branch;
+      },
+    });
+
+    const cli = command({
+      name: "git",
+      subcommands: [checkout],
+    });
+
+    cli.run(["co", "main"]);
+
+    expect(receivedBranch).toBe("main");
+  });
+
+  it("includes aliases in suggestions for unknown subcommand", () => {
+    const checkout = command({
+      name: "checkout",
+      aliases: ["co"],
+      handler: () => {},
+    });
+
+    const cli = command({
+      name: "git",
+      subcommands: [checkout],
+    });
+
+    // "coo" is close to "co" alias
+    expect(() => cli.run(["coo"])).toThrow(UnknownSubcommandError);
+
+    try {
+      cli.run(["coo"]);
+    } catch (error) {
+      if (error instanceof UnknownSubcommandError) {
+        expect(error.suggestions).toContain("co");
+      }
+    }
+  });
+
+  it("exposes aliases property", () => {
+    const checkout = command({
+      name: "checkout",
+      aliases: ["co", "switch"],
+      handler: () => {},
+    });
+
+    expect(checkout.aliases).toEqual(["co", "switch"]);
+  });
+
+  it("has undefined aliases when not specified", () => {
+    const cmd = command({
+      name: "test",
+      handler: () => {},
+    });
+
+    expect(cmd.aliases).toBeUndefined();
+  });
+});
+
 describe("command", () => {
   it("executes its handler", () => {
     let executed = false;

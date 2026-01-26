@@ -74,6 +74,8 @@ export class Command<
   readonly version?: string;
   /** Whether command is hidden from help output */
   readonly hidden?: boolean;
+  /** Alternative names for this command */
+  readonly aliases?: readonly string[];
   /** Positional argument definitions */
   readonly args: T;
   /** Option definitions (normalized with long names) */
@@ -82,8 +84,10 @@ export class Command<
   readonly inherits: NormalizedOptions;
   /** Handler function for leaf commands */
   readonly handler?: (args: ArgsToValues<T>, options: OptionsToValues<MergeOptions<I, O>>) => void;
-  /** Map of subcommands for parent commands */
+  /** Map of subcommands for parent commands (by name) */
   readonly subcommands?: Map<string, AnyCommand>;
+  /** Map of alias to subcommand for fast lookup */
+  private readonly aliasMap?: Map<string, AnyCommand>;
   /** Group definitions for organizing subcommands in help output */
   readonly groups?: CommandGroups;
   /** Examples shown in help output */
@@ -94,6 +98,7 @@ export class Command<
     this.description = cmdOptions.description;
     this.version = cmdOptions.version;
     this.hidden = cmdOptions.hidden;
+    this.aliases = cmdOptions.aliases;
     this.examples = cmdOptions.examples;
     this.options = normalizeOptions(cmdOptions.options ?? {});
 
@@ -104,6 +109,16 @@ export class Command<
       this.args = [] as unknown as T;
       this.inherits = {};
       this.subcommands = new Map(cmdOptions.subcommands.map((cmd) => [cmd.name, cmd]));
+
+      // Build alias map for fast lookup
+      this.aliasMap = new Map();
+      for (const cmd of cmdOptions.subcommands) {
+        if (cmd.aliases) {
+          for (const alias of cmd.aliases) {
+            this.aliasMap.set(alias, cmd);
+          }
+        }
+      }
 
       if (cmdOptions.groups) {
         this.validateGroups(cmdOptions.groups);
@@ -175,14 +190,28 @@ export class Command<
     return this.subcommands !== undefined && this.subcommands.size > 0;
   }
 
-  /** Get a subcommand by name, or undefined if not found */
+  /** Get a subcommand by name or alias, or undefined if not found */
   getSubcommand(name: string): AnyCommand | undefined {
-    return this.subcommands?.get(name);
+    // First check primary names
+    const cmd = this.subcommands?.get(name);
+    if (cmd) return cmd;
+
+    // Then check aliases
+    return this.aliasMap?.get(name);
   }
 
-  /** Get an array of all subcommand names */
+  /** Get an array of all subcommand names (primary names only) */
   getSubcommandNames(): string[] {
     return this.subcommands ? Array.from(this.subcommands.keys()) : [];
+  }
+
+  /** Get an array of all subcommand names including aliases */
+  getAllSubcommandNames(): string[] {
+    const names = this.getSubcommandNames();
+    if (this.aliasMap) {
+      names.push(...this.aliasMap.keys());
+    }
+    return names;
   }
 
   /**
@@ -247,7 +276,8 @@ export class Command<
     const subcommand = this.getSubcommand(subcommandName);
     if (!subcommand) {
       const available = this.getSubcommandNames();
-      const suggestions = findSuggestions(subcommandName, available);
+      const allNames = this.getAllSubcommandNames();
+      const suggestions = findSuggestions(subcommandName, allNames);
       throw new UnknownSubcommandError(subcommandName, available, suggestions, this);
     }
 

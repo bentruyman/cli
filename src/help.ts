@@ -183,6 +183,17 @@ function formatFlag(opt: NormalizedOptions[string], valueSuffix: string): string
     : kleur.cyan(`    --${negatablePrefix}${opt.long}`);
 }
 
+function formatCommandNameWithAliases(cmd: AnyCommand): string {
+  if (cmd.aliases && cmd.aliases.length > 0) {
+    return `${cmd.name} (${cmd.aliases.join(", ")})`;
+  }
+  return cmd.name;
+}
+
+function getCommandDisplayWidth(cmd: AnyCommand): number {
+  return formatCommandNameWithAliases(cmd).length;
+}
+
 export function formatParentHelp(command: ParentCommandInfo): string {
   const output: string[] = [""];
 
@@ -205,15 +216,18 @@ export function formatParentHelp(command: ParentCommandInfo): string {
 
   const subcommandEntries = Array.from(command.subcommands.values()).filter((sub) => !sub.hidden);
   const maxNameLen =
-    subcommandEntries.length > 0 ? Math.max(...subcommandEntries.map((s) => s.name.length)) : 0;
+    subcommandEntries.length > 0
+      ? Math.max(...subcommandEntries.map((s) => getCommandDisplayWidth(s)))
+      : 0;
 
   if (command.groups && Object.keys(command.groups).length > 0) {
     output.push(...formatGroupedCommands(command, maxNameLen));
   } else {
     output.push(kleur.bold("Commands:"));
     for (const sub of subcommandEntries) {
-      const padding = " ".repeat(maxNameLen - sub.name.length + 2);
-      output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+      const displayName = formatCommandNameWithAliases(sub);
+      const padding = " ".repeat(maxNameLen - displayName.length + 2);
+      output.push(`  ${kleur.yellow(displayName)}${padding}${sub.description ?? ""}`);
     }
   }
 
@@ -239,8 +253,9 @@ function formatGroupedCommands(command: ParentCommandInfo, maxNameLen: number): 
     for (const cmdName of commandNames) {
       const sub = subcommands.get(cmdName);
       if (sub && !sub.hidden) {
-        const padding = " ".repeat(maxNameLen - sub.name.length + 2);
-        output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+        const displayName = formatCommandNameWithAliases(sub);
+        const padding = " ".repeat(maxNameLen - displayName.length + 2);
+        output.push(`  ${kleur.yellow(displayName)}${padding}${sub.description ?? ""}`);
         displayedCommands.add(cmdName);
       }
     }
@@ -254,8 +269,9 @@ function formatGroupedCommands(command: ParentCommandInfo, maxNameLen: number): 
 
   if (ungroupedCommands.length > 0) {
     for (const sub of ungroupedCommands) {
-      const padding = " ".repeat(maxNameLen - sub.name.length + 2);
-      output.push(`  ${kleur.yellow(sub.name)}${padding}${sub.description ?? ""}`);
+      const displayName = formatCommandNameWithAliases(sub);
+      const padding = " ".repeat(maxNameLen - displayName.length + 2);
+      output.push(`  ${kleur.yellow(displayName)}${padding}${sub.description ?? ""}`);
     }
   }
 

@@ -6,6 +6,7 @@ export interface CommandData {
   name: string;
   description?: string;
   hidden?: boolean;
+  aliases?: readonly string[];
   options: OptionData[];
   subcommands: CommandData[];
 }

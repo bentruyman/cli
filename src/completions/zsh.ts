@@ -97,6 +97,12 @@ function generateCommandFunction(data: CommandData, indent: number): string[] {
     for (const sub of visibleSubcommands) {
       const desc = sub.description ? escapeZsh(sub.description) : sub.name;
       lines.push(`${pad}      '${sub.name}:${desc}'`);
+      // Add aliases as additional completions
+      if (sub.aliases) {
+        for (const alias of sub.aliases) {
+          lines.push(`${pad}      '${alias}:${desc}'`);
+        }
+      }
     }
 
     lines.push(`${pad}    )`);
@@ -106,7 +112,9 @@ function generateCommandFunction(data: CommandData, indent: number): string[] {
     lines.push(`${pad}    case "$words[1]" in`);
 
     for (const sub of visibleSubcommands) {
-      lines.push(`${pad}      ${sub.name})`);
+      // Match both primary name and aliases
+      const names = [sub.name, ...(sub.aliases || [])];
+      lines.push(`${pad}      ${names.join("|")})`);
       lines.push(`${pad}        _${sanitizeName(data.name)}_${sanitizeName(sub.name)}`);
       lines.push(`${pad}        ;;`);
     }

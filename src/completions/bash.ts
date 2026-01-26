@@ -44,7 +44,15 @@ function sanitizeName(name: string): string {
 }
 
 function getSubcommandNames(data: CommandData): string[] {
-  return data.subcommands.filter((sub) => !sub.hidden).map((sub) => sub.name);
+  const names: string[] = [];
+  for (const sub of data.subcommands) {
+    if (sub.hidden) continue;
+    names.push(sub.name);
+    if (sub.aliases) {
+      names.push(...sub.aliases);
+    }
+  }
+  return names;
 }
 
 function formatOptions(options: CommandData["options"]): string {

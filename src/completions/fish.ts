@@ -57,6 +57,12 @@ function generateCommandCompletions(
     for (const sub of visibleSubcommands) {
       const desc = sub.description ? ` -d '${escapeFish(sub.description)}'` : "";
       lines.push(`complete -c ${cmdName} ${condition} -a ${sub.name}${desc}`);
+      // Add aliases as additional completions
+      if (sub.aliases) {
+        for (const alias of sub.aliases) {
+          lines.push(`complete -c ${cmdName} ${condition} -a ${alias}${desc}`);
+        }
+      }
     }
 
     // Recurse for each subcommand
@@ -94,8 +100,15 @@ function buildCondition(parentChain: string[], hasSubcommands: CommandData[]): s
     const lastParent = parentChain[parentChain.length - 1];
     if (hasSubcommands.length > 0) {
       // Has subcommands: show options when parent is seen but no nested subcommand yet
-      const subNames = hasSubcommands.map((s) => s.name).join(" ");
-      return `-n "__fish_seen_subcommand_from ${lastParent}; and not __fish_seen_subcommand_from ${subNames}"`;
+      // Include both names and aliases in the check
+      const allNames: string[] = [];
+      for (const s of hasSubcommands) {
+        allNames.push(s.name);
+        if (s.aliases) {
+          allNames.push(...s.aliases);
+        }
+      }
+      return `-n "__fish_seen_subcommand_from ${lastParent}; and not __fish_seen_subcommand_from ${allNames.join(" ")}"`;
     }
     // Leaf command: show options when parent is seen
     return `-n "__fish_seen_subcommand_from ${lastParent}"`;

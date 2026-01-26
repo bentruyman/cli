@@ -238,6 +238,16 @@ type BaseCommandOptions = {
   examples?: Examples;
   /** If true, command is hidden from help output (e.g., for internal commands like completions) */
   hidden?: boolean;
+  /**
+   * Alternative names for this command.
+   * Useful for shortcuts like "co" for "checkout".
+   * @example
+   * ```typescript
+   * { name: "checkout", aliases: ["co", "switch"] }
+   * // Can be invoked as: my-cli checkout, my-cli co, or my-cli switch
+   * ```
+   */
+  aliases?: string[];
 };
 
 /**
@@ -293,6 +303,7 @@ export interface AnyCommand {
   readonly name: string;
   readonly description?: string;
   readonly hidden?: boolean;
+  readonly aliases?: readonly string[];
   readonly options: NormalizedOptions;
   /** Execute the command with the given arguments */
   run(argv: string[], inheritedOptions?: Record<string, unknown>): void | Promise<void>;

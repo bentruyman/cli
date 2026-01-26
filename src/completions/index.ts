@@ -40,6 +40,7 @@ function collectCommandData(cmd: AnyCommand): CommandData {
     name: cmd.name,
     description: cmd.description,
     hidden: cmd.hidden,
+    aliases: cmd.aliases,
     options,
     subcommands,
   };
