@@ -1173,6 +1173,39 @@ describe("subcommands", () => {
       expect(() => cli.run([])).toThrow(MissingSubcommandError);
     });
 
+    it("shows nested parent command help when subcommand missing", () => {
+      const stderrSpy = spyOn(process.stderr, "write").mockImplementation(() => true);
+
+      const leaf = command({
+        name: "leaf",
+        description: "A leaf command",
+        handler: () => {},
+      });
+
+      const nested = command({
+        name: "nested",
+        description: "Nested parent description",
+        subcommands: [leaf],
+      });
+
+      const cli = command({
+        name: "cli",
+        description: "Root CLI description",
+        subcommands: [nested],
+      });
+
+      run(cli, ["nested"]);
+
+      expect(stderrSpy).toHaveBeenCalled();
+      const output = stderrSpy.mock.calls.map((c) => c[0]).join("");
+      // Should show nested command's help, not root's help
+      expect(output).toContain("Nested parent description");
+      expect(output).toContain("leaf");
+      expect(output).not.toContain("Root CLI description");
+
+      stderrSpy.mockRestore();
+    });
+
     it("throws UnknownSubcommandError for unknown subcommand", () => {
       const add = command({
         name: "add",

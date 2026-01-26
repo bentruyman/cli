@@ -62,11 +62,14 @@ export class InvalidArgumentError extends BaseError {
 export class MissingSubcommandError extends BaseError {
   /** List of valid subcommand names */
   availableSubcommands: string[];
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
 
-  constructor(commandName: string, availableSubcommands: string[]) {
+  constructor(commandName: string, availableSubcommands: string[], source?: ErrorSource) {
     const available = availableSubcommands.join(", ");
     super(`Missing subcommand for '${commandName}'. Available: ${available}`);
     this.availableSubcommands = availableSubcommands;
+    this.source = source;
   }
 }
 

@@ -236,7 +236,7 @@ export class Command<
     const subcommandName = parsed._[0];
 
     if (!subcommandName || subcommandName.startsWith("-")) {
-      throw new MissingSubcommandError(this.name, this.getSubcommandNames());
+      throw new MissingSubcommandError(this.name, this.getSubcommandNames(), this);
     }
 
     const subcommand = this.getSubcommand(subcommandName);

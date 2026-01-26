@@ -73,7 +73,8 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
     stderr("");
     stderr(source.help());
   } else if (error instanceof MissingSubcommandError) {
-    stderr(cmd.help());
+    const source = error.source ?? cmd;
+    stderr(source.help());
   } else if (error instanceof UnknownSubcommandError) {
     const source = error.source ?? cmd;
     stderr(kleur.red(`Error: ${error.message}`));
