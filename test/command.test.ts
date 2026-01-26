@@ -12,6 +12,7 @@ import {
   UnknownOptionError,
   ReservedOptionError,
   ValidationError,
+  InvalidChoiceError,
 } from "../src/errors";
 
 describe("command", () => {
@@ -364,6 +365,87 @@ describe("command", () => {
 
         expect(() => cmd.run(["1", "200", "3"])).toThrow(ValidationError);
         expect(() => cmd.run(["1", "200", "3"])).toThrow("Must be less than 100");
+      });
+    });
+
+    describe("choices", () => {
+      it("accepts valid choice", () => {
+        let receivedValue: string | undefined;
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "action",
+              type: "string",
+              choices: ["start", "stop", "restart"] as const,
+            },
+          ] as const,
+          handler: ([action]) => {
+            receivedValue = action as string;
+          },
+        });
+
+        cmd.run(["start"]);
+
+        expect(receivedValue).toBe("start");
+      });
+
+      it("rejects invalid choice", () => {
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "action",
+              type: "string",
+              choices: ["start", "stop", "restart"] as const,
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["pause"])).toThrow(InvalidChoiceError);
+        expect(() => cmd.run(["pause"])).toThrow("Valid choices: start, stop, restart");
+      });
+
+      it("validates each value in variadic args with choices", () => {
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "actions",
+              type: "string",
+              variadic: true,
+              choices: ["start", "stop"] as const,
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["start", "invalid", "stop"])).toThrow(InvalidChoiceError);
+      });
+
+      it("works with number choices", () => {
+        let receivedValue: number | undefined;
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "level",
+              type: "number",
+              choices: [1, 2, 3] as const,
+            },
+          ] as const,
+          handler: ([level]) => {
+            receivedValue = level as number;
+          },
+        });
+
+        cmd.run(["2"]);
+        expect(receivedValue).toBe(2);
+
+        expect(() => cmd.run(["5"])).toThrow(InvalidChoiceError);
       });
     });
   });
@@ -1183,6 +1265,82 @@ describe("command", () => {
 
         expect(receivedValue).toBe(42);
         expect(typeof receivedValue).toBe("number");
+      });
+    });
+
+    describe("choices", () => {
+      it("accepts valid choice", () => {
+        let receivedValue: string | undefined;
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            format: {
+              type: "string",
+              choices: ["json", "yaml", "toml"] as const,
+            },
+          },
+          handler: (_, { format }) => {
+            receivedValue = format as string;
+          },
+        });
+
+        cmd.run(["--format", "json"]);
+
+        expect(receivedValue).toBe("json");
+      });
+
+      it("rejects invalid choice", () => {
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            format: {
+              type: "string",
+              choices: ["json", "yaml", "toml"] as const,
+            },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["--format", "xml"])).toThrow(InvalidChoiceError);
+        expect(() => cmd.run(["--format", "xml"])).toThrow("Valid choices: json, yaml, toml");
+      });
+
+      it("validates each value in multiple options with choices", () => {
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            format: {
+              type: "string",
+              multiple: true,
+              choices: ["json", "yaml"] as const,
+            },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["--format", "json", "--format", "xml"])).toThrow(InvalidChoiceError);
+      });
+
+      it("allows undefined when option is optional", () => {
+        let receivedValue: string | undefined = "initial";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            format: {
+              type: "string",
+              choices: ["json", "yaml"] as const,
+            },
+          },
+          handler: (_, { format }) => {
+            receivedValue = format as string | undefined;
+          },
+        });
+
+        cmd.run([]);
+
+        expect(receivedValue).toBeUndefined();
       });
     });
   });

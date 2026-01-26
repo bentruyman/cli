@@ -538,6 +538,82 @@ ${kleur.bold("Options:")}
     });
   });
 
+  describe("choices", () => {
+    it("shows choices for options instead of type placeholder", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          format: {
+            type: "string",
+            choices: ["json", "yaml", "toml"] as const,
+            description: "Output format",
+          },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain(`--format${kleur.dim("=<json|yaml|toml>")}`);
+      expect(help).toContain("Output format");
+    });
+
+    it("shows choices for arguments in description", () => {
+      const cmd = command({
+        name: "my-cli",
+        args: [
+          {
+            name: "action",
+            type: "string",
+            description: "Action to perform",
+            choices: ["start", "stop", "restart"] as const,
+          },
+        ] as const,
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("Action to perform (start|stop|restart)");
+    });
+
+    it("shows choices for arguments without description", () => {
+      const cmd = command({
+        name: "my-cli",
+        args: [
+          {
+            name: "action",
+            type: "string",
+            choices: ["start", "stop"] as const,
+          },
+        ] as const,
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain("(start|stop)");
+    });
+
+    it("shows choices with multiple option suffix", () => {
+      const cmd = command({
+        name: "my-cli",
+        options: {
+          format: {
+            type: "string",
+            choices: ["json", "yaml"] as const,
+            multiple: true,
+          },
+        },
+        handler: () => {},
+      });
+
+      const help = cmd.help();
+
+      expect(help).toContain(`--format${kleur.dim("=<json|yaml>...")}`);
+    });
+  });
+
   describe("hidden commands", () => {
     it("excludes hidden subcommands from help", () => {
       const visible = command({

@@ -115,7 +115,11 @@ function formatArguments(args: readonly PositionalArg[]): string[] {
 
   for (const arg of args) {
     const argName = kleur.green(formatArgName(arg));
-    const description = arg.description ?? "";
+    let description = arg.description ?? "";
+    if (arg.choices && arg.choices.length > 0) {
+      const choicesStr = arg.choices.join("|");
+      description = description ? `${description} (${choicesStr})` : `(${choicesStr})`;
+    }
     lines.push(`  ${argName}  ${description}`);
   }
 
@@ -127,7 +131,14 @@ function formatOptions(options: NormalizedOptions): string[] {
 }
 
 function getValueSuffix(opt: NormalizedOptions[string]): string {
-  const baseSuffix = opt.placeholder ? `=<${opt.placeholder}>` : VALUE_SUFFIXES[opt.type];
+  let baseSuffix: string;
+  if (opt.choices && opt.choices.length > 0) {
+    baseSuffix = `=<${opt.choices.join("|")}>`;
+  } else if (opt.placeholder) {
+    baseSuffix = `=<${opt.placeholder}>`;
+  } else {
+    baseSuffix = VALUE_SUFFIXES[opt.type];
+  }
   return opt.multiple && baseSuffix ? `${baseSuffix}...` : baseSuffix;
 }
 

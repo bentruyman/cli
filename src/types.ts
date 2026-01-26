@@ -31,6 +31,15 @@ export type PositionalArg = {
   /** If true, collects all remaining positional arguments into an array. Must be the last arg. */
   variadic?: boolean;
   /**
+   * Restricts the argument value to a predefined set of choices.
+   * Use `as const` for type inference.
+   * @example
+   * ```typescript
+   * { choices: ["start", "stop", "restart"] as const }
+   * ```
+   */
+  choices?: readonly (string | number | boolean)[];
+  /**
    * Custom validation function called after type coercion.
    * Return true if valid, or a string error message if invalid.
    * @example
@@ -104,6 +113,15 @@ export type Option = {
    */
   negatable?: boolean;
   /**
+   * Restricts the option value to a predefined set of choices.
+   * Use `as const` for type inference.
+   * @example
+   * ```typescript
+   * { choices: ["json", "yaml", "toml"] as const }
+   * ```
+   */
+  choices?: readonly (string | number | boolean)[];
+  /**
    * Custom validation function called after type coercion.
    * Return true if valid, or a string error message if invalid.
    * For `multiple` options, validation runs on each value.
@@ -158,28 +176,42 @@ export type Examples = Example[];
 
 /** Converts positional arg definitions to a tuple of their runtime value types */
 export type ArgsToValues<T extends readonly PositionalArg[]> = {
-  [K in keyof T]: T[K] extends { type: infer U extends keyof TypeMap; variadic: true }
-    ? TypeMap[U][]
-    : T[K] extends { type: infer U extends keyof TypeMap; optional: true }
-      ? TypeMap[U] | undefined
-      : T[K] extends { type: infer U extends keyof TypeMap }
-        ? TypeMap[U]
-        : never;
+  [K in keyof T]: T[K] extends { choices: readonly (infer C)[]; variadic: true }
+    ? C[]
+    : T[K] extends { choices: readonly (infer C)[]; optional: true }
+      ? C | undefined
+      : T[K] extends { choices: readonly (infer C)[] }
+        ? C
+        : T[K] extends { type: infer U extends keyof TypeMap; variadic: true }
+          ? TypeMap[U][]
+          : T[K] extends { type: infer U extends keyof TypeMap; optional: true }
+            ? TypeMap[U] | undefined
+            : T[K] extends { type: infer U extends keyof TypeMap }
+              ? TypeMap[U]
+              : never;
 };
 
 /** Converts option definitions to an object type with their runtime value types */
 export type OptionsToValues<O extends Options> = {
-  [K in keyof O]: O[K] extends { multiple: true; type: infer U extends keyof TypeMap }
-    ? TypeMap[U][]
-    : O[K] extends { type: "boolean" }
-      ? boolean
-      : O[K] extends { type: infer U extends keyof TypeMap; default: infer _D }
-        ? TypeMap[U]
-        : O[K] extends { type: infer U extends keyof TypeMap; required: true }
-          ? TypeMap[U]
-          : O[K] extends { type: infer U extends keyof TypeMap }
-            ? TypeMap[U] | undefined
-            : never;
+  [K in keyof O]: O[K] extends { choices: readonly (infer C)[]; multiple: true }
+    ? C[]
+    : O[K] extends { choices: readonly (infer C)[]; default: infer _D }
+      ? C
+      : O[K] extends { choices: readonly (infer C)[]; required: true }
+        ? C
+        : O[K] extends { choices: readonly (infer C)[] }
+          ? C | undefined
+          : O[K] extends { multiple: true; type: infer U extends keyof TypeMap }
+            ? TypeMap[U][]
+            : O[K] extends { type: "boolean" }
+              ? boolean
+              : O[K] extends { type: infer U extends keyof TypeMap; default: infer _D }
+                ? TypeMap[U]
+                : O[K] extends { type: infer U extends keyof TypeMap; required: true }
+                  ? TypeMap[U]
+                  : O[K] extends { type: infer U extends keyof TypeMap }
+                    ? TypeMap[U] | undefined
+                    : never;
 };
 
 /** Merges inherited and own options into a single type */

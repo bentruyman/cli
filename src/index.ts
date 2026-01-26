@@ -11,12 +11,14 @@ import {
   UnknownSubcommandError,
   UnknownOptionError,
   ValidationError,
+  InvalidChoiceError,
 } from "./errors";
 import type { AnyCommand } from "./types";
 
 export { command, Command };
 export {
   InvalidArgumentError,
+  InvalidChoiceError,
   InvalidOptionError,
   MissingArgumentError,
   MissingOptionError,
@@ -108,6 +110,11 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
     stderr("");
     stderr(source.help());
   } else if (error instanceof ValidationError) {
+    const source = error.source ?? cmd;
+    stderr(kleur.red(`Error: ${error.message}`));
+    stderr("");
+    stderr(source.help());
+  } else if (error instanceof InvalidChoiceError) {
     const source = error.source ?? cmd;
     stderr(kleur.red(`Error: ${error.message}`));
     stderr("");

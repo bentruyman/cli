@@ -150,3 +150,21 @@ export class ValidationError extends BaseError {
     this.source = source;
   }
 }
+
+/** Thrown when a value is not one of the allowed choices */
+export class InvalidChoiceError extends BaseError {
+  /** The value that was provided */
+  value: unknown;
+  /** The list of valid choices */
+  choices: readonly unknown[];
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(name: string, value: unknown, choices: readonly unknown[], source?: ErrorSource) {
+    const choicesList = choices.join(", ");
+    super(`Invalid value '${value}' for ${name}. Valid choices: ${choicesList}`);
+    this.value = value;
+    this.choices = choices;
+    this.source = source;
+  }
+}

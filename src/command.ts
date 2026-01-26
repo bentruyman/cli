@@ -10,6 +10,7 @@ import {
   UnknownOptionError,
   ReservedOptionError,
   ValidationError,
+  InvalidChoiceError,
 } from "./errors";
 import { findSuggestions } from "./suggestions";
 import { formatHelp, formatParentHelp } from "./help";
@@ -340,6 +341,10 @@ export class Command<
               typedValue = value;
           }
 
+          if (arg.choices) {
+            this.validateChoice(typedValue, arg.choices, arg.name);
+          }
+
           if (arg.validate) {
             this.runValidation(typedValue, arg.validate, arg.name);
           }
@@ -377,8 +382,14 @@ export class Command<
             typedValue = value;
         }
 
-        if (typedValue !== undefined && arg.validate) {
-          this.runValidation(typedValue, arg.validate, arg.name);
+        if (typedValue !== undefined) {
+          if (arg.choices) {
+            this.validateChoice(typedValue, arg.choices, arg.name);
+          }
+
+          if (arg.validate) {
+            this.runValidation(typedValue, arg.validate, arg.name);
+          }
         }
 
         values.push(typedValue);
@@ -473,6 +484,12 @@ export class Command<
     }
   }
 
+  private validateChoice(value: unknown, choices: readonly unknown[], name: string): void {
+    if (!choices.includes(value)) {
+      throw new InvalidChoiceError(name, value, choices, this);
+    }
+  }
+
   private extractMultipleOptionValue(
     value: unknown,
     opt: NormalizedOptions[string],
@@ -511,6 +528,11 @@ export class Command<
 
       if (opt.multiple) {
         const arr = this.extractMultipleOptionValue(value, opt, key);
+        if (opt.choices) {
+          for (const v of arr) {
+            this.validateChoice(v, opt.choices, key);
+          }
+        }
         if (opt.validate) {
           for (const v of arr) {
             this.runValidation(v, opt.validate, key);
@@ -533,9 +555,14 @@ export class Command<
         throw new MissingOptionError(opt.long, this);
       }
 
-      // Run validation for non-multiple options (multiple handled above)
-      if (!opt.multiple && opt.validate && optionValues[key] !== undefined) {
-        this.runValidation(optionValues[key], opt.validate, key);
+      // Run choice validation and custom validation for non-multiple options (multiple handled above)
+      if (!opt.multiple && optionValues[key] !== undefined) {
+        if (opt.choices) {
+          this.validateChoice(optionValues[key], opt.choices, key);
+        }
+        if (opt.validate) {
+          this.runValidation(optionValues[key], opt.validate, key);
+        }
       }
     }
 
