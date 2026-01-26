@@ -232,23 +232,124 @@ Examples can be simple strings or objects with `{ command, description }` for an
 
 ### Positional Args
 
-```typescript
-{ name: "file", type: "string", optional: true, description: "Input file" }
-```
+| Property      | Type      | Description                                      |
+| ------------- | --------- | ------------------------------------------------ |
+| `name`        | `string`  | Argument name shown in help                      |
+| `type`        | `string`  | `"string"`, `"number"`, or `"boolean"`           |
+| `description` | `string`  | Shown in help output                             |
+| `optional`    | `boolean` | Shows as `[name]` instead of `<name>`            |
+| `variadic`    | `boolean` | Collect remaining args into array (must be last) |
 
-Types: `"string"` | `"number"` | `"boolean"`
+#### Variadic Arguments
+
+```typescript
+const rm = command({
+  name: "rm",
+  args: [{ name: "files", type: "string", variadic: true }] as const,
+  handler: ([files]) => files.forEach(f => console.log(`Removing ${f}`)),
+});
+// rm file1.txt file2.txt file3.txt → files = ["file1.txt", "file2.txt", "file3.txt"]
+```
 
 ### Options
 
+| Property      | Type      | Description                                 |
+| ------------- | --------- | ------------------------------------------- |
+| `type`        | `string`  | `"string"`, `"number"`, or `"boolean"`      |
+| `long`        | `string`  | Long flag name (defaults to key name)       |
+| `short`       | `string`  | Single-character short flag                 |
+| `description` | `string`  | Shown in help output                        |
+| `default`     | `any`     | Default value when not provided             |
+| `required`    | `boolean` | Throw error if not provided                 |
+| `multiple`    | `boolean` | Collect repeated flags into array           |
+| `negatable`   | `boolean` | Allow `--no-<flag>` syntax (boolean only)   |
+| `placeholder` | `string`  | Custom placeholder in help (e.g., `"path"`) |
+
+#### Default Values
+
 ```typescript
-{
-  verbose: {
-    type: "boolean",
-    long: "verbose",
-    short: "v",
-    description: "Extra output"
+port: { type: "number", default: 3000 }
+// --port 8080 → 8080, (omitted) → 3000
+```
+
+#### Required Options
+
+```typescript
+config: { type: "string", required: true }
+// Missing --config throws MissingOptionError
+```
+
+#### Multiple Values
+
+```typescript
+tag: { type: "string", multiple: true }
+// --tag foo --tag bar → ["foo", "bar"]
+```
+
+#### Negatable Flags
+
+```typescript
+color: { type: "boolean", negatable: true }
+// --color → true, --no-color → false
+```
+
+### Async Handlers
+
+Handlers can be async. `run()` awaits completion:
+
+```typescript
+handler: async ([url]) => {
+  const res = await fetch(url);
+  console.log(await res.text());
+}
+```
+
+### Error Handling
+
+`run()` catches errors and displays helpful messages. For custom handling, call `command.run()` directly:
+
+```typescript
+import { MissingArgumentError } from "@truyman/cli";
+
+try {
+  myCommand.run(argv);
+} catch (err) {
+  if (err instanceof MissingArgumentError) {
+    // Custom handling
   }
 }
+```
+
+| Error                    | Cause                                       |
+| ------------------------ | ------------------------------------------- |
+| `MissingArgumentError`   | Required positional argument not provided   |
+| `InvalidArgumentError`   | Argument value doesn't match expected type  |
+| `MissingOptionError`     | Required option not provided                |
+| `InvalidOptionError`     | Option value doesn't match expected type    |
+| `UnknownOptionError`     | Unknown flag provided                       |
+| `MissingSubcommandError` | Parent command invoked without subcommand   |
+| `UnknownSubcommandError` | Unknown subcommand name (shows suggestions) |
+
+### Type Safety
+
+Use `as const` on args for precise type inference:
+
+```typescript
+// ✓ Handler receives [string, number | undefined]
+args: [
+  { name: "file", type: "string" },
+  { name: "count", type: "number", optional: true },
+] as const,
+
+// ✗ Without as const: handler receives unknown[]
+```
+
+For reusable options, use `as const satisfies Options`:
+
+```typescript
+const GlobalOptions = {
+  verbose: { type: "boolean", short: "v" },
+} as const satisfies Options;
 ```
 
 ### `run(command, argv)`
