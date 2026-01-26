@@ -11,6 +11,7 @@ import {
   UnknownSubcommandError,
   UnknownOptionError,
   ReservedOptionError,
+  ValidationError,
 } from "../src/errors";
 
 describe("command", () => {
@@ -233,6 +234,136 @@ describe("command", () => {
         });
 
         expect(() => cmd.run(["1", "abc", "3"])).toThrow(InvalidArgumentError);
+      });
+    });
+
+    describe("validation", () => {
+      it("passes validation when validator returns true", () => {
+        let receivedValue = "";
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "name",
+              type: "string",
+              validate: (v) => (v as string).length > 0 || "Name cannot be empty",
+            },
+          ] as const,
+          handler: ([name]) => {
+            receivedValue = name as string;
+          },
+        });
+
+        cmd.run(["test"]);
+
+        expect(receivedValue).toBe("test");
+      });
+
+      it("throws ValidationError when validator returns string", () => {
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "name",
+              type: "string",
+              validate: () => "Custom error message",
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["test"])).toThrow(ValidationError);
+        expect(() => cmd.run(["test"])).toThrow("Custom error message");
+      });
+
+      it("receives typed value in validator (number)", () => {
+        let receivedType = "";
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "count",
+              type: "number",
+              validate: (v) => {
+                receivedType = typeof v;
+                return true;
+              },
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        cmd.run(["42"]);
+
+        expect(receivedType).toBe("number");
+      });
+
+      it("does not run validation for undefined optional args", () => {
+        let validatorCalled = false;
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "name",
+              type: "string",
+              optional: true,
+              validate: () => {
+                validatorCalled = true;
+                return true;
+              },
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        cmd.run([]);
+
+        expect(validatorCalled).toBeFalse();
+      });
+
+      it("validates each value in variadic args", () => {
+        const validatedValues: unknown[] = [];
+
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "nums",
+              type: "number",
+              variadic: true,
+              validate: (v) => {
+                validatedValues.push(v);
+                return (v as number) > 0 || "Must be positive";
+              },
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        cmd.run(["1", "2", "3"]);
+
+        expect(validatedValues).toEqual([1, 2, 3]);
+      });
+
+      it("throws for invalid value in variadic args", () => {
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "nums",
+              type: "number",
+              variadic: true,
+              validate: (v) => (v as number) < 100 || "Must be less than 100",
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["1", "200", "3"])).toThrow(ValidationError);
+        expect(() => cmd.run(["1", "200", "3"])).toThrow("Must be less than 100");
       });
     });
   });
@@ -904,6 +1035,154 @@ describe("command", () => {
 
         cmd.run(["--no-color"]);
         expect(actual).toBe(false);
+      });
+    });
+
+    describe("validation", () => {
+      it("passes validation when validator returns true", () => {
+        let receivedValue: number | undefined;
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              validate: (v) =>
+                ((v as number) >= 1 && (v as number) <= 65535) || "Port must be 1-65535",
+            },
+          },
+          handler: (_, { port }) => {
+            receivedValue = port;
+          },
+        });
+
+        cmd.run(["--port", "8080"]);
+
+        expect(receivedValue).toBe(8080);
+      });
+
+      it("throws ValidationError when validator returns string", () => {
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              validate: (v) =>
+                ((v as number) >= 1 && (v as number) <= 65535) || "Port must be 1-65535",
+            },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["--port", "99999"])).toThrow(ValidationError);
+        expect(() => cmd.run(["--port", "99999"])).toThrow("Port must be 1-65535");
+      });
+
+      it("receives typed value in validator", () => {
+        let receivedType = "";
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            count: {
+              type: "number",
+              validate: (v) => {
+                receivedType = typeof v;
+                return true;
+              },
+            },
+          },
+          handler: () => {},
+        });
+
+        cmd.run(["--count", "42"]);
+
+        expect(receivedType).toBe("number");
+      });
+
+      it("does not run validation for undefined optional options", () => {
+        let validatorCalled = false;
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            name: {
+              type: "string",
+              validate: () => {
+                validatorCalled = true;
+                return true;
+              },
+            },
+          },
+          handler: () => {},
+        });
+
+        cmd.run([]);
+
+        expect(validatorCalled).toBeFalse();
+      });
+
+      it("validates each value in multiple options", () => {
+        const validatedValues: unknown[] = [];
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              multiple: true,
+              validate: (v) => {
+                validatedValues.push(v);
+                return (v as number) > 0 || "Must be positive";
+              },
+            },
+          },
+          handler: () => {},
+        });
+
+        cmd.run(["--port", "80", "--port", "443", "--port", "8080"]);
+
+        expect(validatedValues).toEqual([80, 443, 8080]);
+      });
+
+      it("throws for invalid value in multiple options", () => {
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            port: {
+              type: "number",
+              multiple: true,
+              validate: (v) => (v as number) <= 65535 || "Port must be <= 65535",
+            },
+          },
+          handler: () => {},
+        });
+
+        expect(() => cmd.run(["--port", "80", "--port", "99999"])).toThrow(ValidationError);
+        expect(() => cmd.run(["--port", "80", "--port", "99999"])).toThrow("Port must be <= 65535");
+      });
+
+      it("runs validation after type coercion", () => {
+        let receivedValue: unknown;
+
+        const cmd = command({
+          name: "my-cli",
+          options: {
+            count: {
+              type: "number",
+              validate: (v) => {
+                receivedValue = v;
+                return true;
+              },
+            },
+          },
+          handler: () => {},
+        });
+
+        cmd.run(["--count", "42"]);
+
+        expect(receivedValue).toBe(42);
+        expect(typeof receivedValue).toBe("number");
       });
     });
   });

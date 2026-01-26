@@ -139,3 +139,14 @@ export class ReservedOptionError extends BaseError {
     super(`Cannot override reserved flag: ${flag}`);
   }
 }
+
+/** Thrown when a custom validation function returns an error */
+export class ValidationError extends BaseError {
+  /** The command where the error occurred, used for displaying help */
+  source?: ErrorSource;
+
+  constructor(message: string, source?: ErrorSource) {
+    super(message);
+    this.source = source;
+  }
+}

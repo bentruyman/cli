@@ -9,6 +9,7 @@ import {
   UnknownSubcommandError,
   UnknownOptionError,
   ReservedOptionError,
+  ValidationError,
 } from "./errors";
 import { findSuggestions } from "./suggestions";
 import { formatHelp, formatParentHelp } from "./help";
@@ -322,19 +323,28 @@ export class Command<
         }
 
         const typedRemaining = remaining.map((value) => {
+          let typedValue: unknown;
           switch (arg.type) {
             case "number": {
               const numValue = Number(value);
               if (isNaN(numValue)) {
                 throw new InvalidArgumentError(`${arg.name} values must be numbers`, this);
               }
-              return numValue;
+              typedValue = numValue;
+              break;
             }
             case "boolean":
-              return value === "true";
+              typedValue = value === "true";
+              break;
             default:
-              return value;
+              typedValue = value;
           }
+
+          if (arg.validate) {
+            this.runValidation(typedValue, arg.validate, arg.name);
+          }
+
+          return typedValue;
         });
 
         values.push(typedRemaining);
@@ -346,6 +356,7 @@ export class Command<
           throw new MissingArgumentError(arg.name, this);
         }
 
+        let typedValue: unknown;
         switch (arg.type) {
           case "number": {
             if (value !== undefined) {
@@ -353,18 +364,24 @@ export class Command<
               if (isNaN(numValue)) {
                 throw new InvalidArgumentError(`${arg.name} must be a number`, this);
               }
-              values.push(numValue);
+              typedValue = numValue;
             } else {
-              values.push(undefined);
+              typedValue = undefined;
             }
             break;
           }
           case "boolean":
-            values.push(value !== undefined ? value === "true" : undefined);
+            typedValue = value !== undefined ? value === "true" : undefined;
             break;
           default:
-            values.push(value);
+            typedValue = value;
         }
+
+        if (typedValue !== undefined && arg.validate) {
+          this.runValidation(typedValue, arg.validate, arg.name);
+        }
+
+        values.push(typedValue);
       }
     }
 
@@ -442,6 +459,20 @@ export class Command<
     return numValue;
   }
 
+  private runValidation(
+    value: unknown,
+    validator: (value: unknown) => true | string,
+    name: string,
+  ): void {
+    const result = validator(value);
+    if (result !== true) {
+      throw new ValidationError(
+        typeof result === "string" ? result : `Invalid value for ${name}`,
+        this,
+      );
+    }
+  }
+
   private extractMultipleOptionValue(
     value: unknown,
     opt: NormalizedOptions[string],
@@ -479,7 +510,13 @@ export class Command<
       const value = parsed[opt.long];
 
       if (opt.multiple) {
-        optionValues[key] = this.extractMultipleOptionValue(value, opt, key);
+        const arr = this.extractMultipleOptionValue(value, opt, key);
+        if (opt.validate) {
+          for (const v of arr) {
+            this.runValidation(v, opt.validate, key);
+          }
+        }
+        optionValues[key] = arr;
       } else if (opt.type === "number") {
         if (value !== undefined) {
           optionValues[key] = this.coerceToNumber(value, key);
@@ -494,6 +531,11 @@ export class Command<
 
       if (opt.required && optionValues[key] === undefined) {
         throw new MissingOptionError(opt.long, this);
+      }
+
+      // Run validation for non-multiple options (multiple handled above)
+      if (!opt.multiple && opt.validate && optionValues[key] !== undefined) {
+        this.runValidation(optionValues[key], opt.validate, key);
       }
     }
 

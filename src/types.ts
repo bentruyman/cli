@@ -30,6 +30,15 @@ export type PositionalArg = {
   optional?: boolean;
   /** If true, collects all remaining positional arguments into an array. Must be the last arg. */
   variadic?: boolean;
+  /**
+   * Custom validation function called after type coercion.
+   * Return true if valid, or a string error message if invalid.
+   * @example
+   * ```typescript
+   * { validate: (v) => v.length > 0 || "Value cannot be empty" }
+   * ```
+   */
+  validate?: (value: unknown) => true | string;
 };
 
 /**
@@ -94,6 +103,16 @@ export type Option = {
    * ```
    */
   negatable?: boolean;
+  /**
+   * Custom validation function called after type coercion.
+   * Return true if valid, or a string error message if invalid.
+   * For `multiple` options, validation runs on each value.
+   * @example
+   * ```typescript
+   * { validate: (v) => v >= 1 && v <= 65535 || "Port must be 1-65535" }
+   * ```
+   */
+  validate?: (value: unknown) => true | string;
 };
 
 /** Record of option definitions keyed by option name */

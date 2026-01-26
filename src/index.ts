@@ -10,6 +10,7 @@ import {
   MissingSubcommandError,
   UnknownSubcommandError,
   UnknownOptionError,
+  ValidationError,
 } from "./errors";
 import type { AnyCommand } from "./types";
 
@@ -22,6 +23,7 @@ export {
   MissingSubcommandError,
   UnknownOptionError,
   UnknownSubcommandError,
+  ValidationError,
 };
 export type {
   AnyCommand,
@@ -101,6 +103,11 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
     stderr("");
     stderr(source.help());
   } else if (error instanceof MissingOptionError) {
+    const source = error.source ?? cmd;
+    stderr(kleur.red(`Error: ${error.message}`));
+    stderr("");
+    stderr(source.help());
+  } else if (error instanceof ValidationError) {
     const source = error.source ?? cmd;
     stderr(kleur.red(`Error: ${error.message}`));
     stderr("");
