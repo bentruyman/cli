@@ -12,6 +12,7 @@ import {
   UnknownOptionError,
   ValidationError,
   InvalidChoiceError,
+  type ErrorSource,
 } from "./errors";
 import type { AnyCommand } from "./types";
 
@@ -79,48 +80,42 @@ function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
   return cmd;
 }
 
+/** Type guard for CLI errors with code and source properties */
+function isCliError(error: unknown): error is Error & { code: string; source?: ErrorSource } {
+  return error instanceof Error && "code" in error && typeof error.code === "string";
+}
+
 function handleError(error: unknown, cmd: Command<any, any, any>): void {
-  if (error instanceof MissingArgumentError) {
-    const source = error.source ?? cmd;
-    stderr(source.help());
-  } else if (error instanceof InvalidArgumentError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr("");
-    stderr(source.help());
-  } else if (error instanceof MissingSubcommandError) {
-    const source = error.source ?? cmd;
-    stderr(source.help());
-  } else if (error instanceof UnknownSubcommandError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr(source.help());
-  } else if (error instanceof UnknownOptionError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr(source.help());
-  } else if (error instanceof InvalidOptionError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr("");
-    stderr(source.help());
-  } else if (error instanceof MissingOptionError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr("");
-    stderr(source.help());
-  } else if (error instanceof ValidationError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr("");
-    stderr(source.help());
-  } else if (error instanceof InvalidChoiceError) {
-    const source = error.source ?? cmd;
-    stderr(kleur.red(`Error: ${error.message}`));
-    stderr("");
-    stderr(source.help());
-  } else {
+  if (!isCliError(error)) {
     throw error;
+  }
+
+  const source = error.source ?? cmd;
+
+  switch (error.code) {
+    case "MISSING_ARGUMENT":
+    case "MISSING_SUBCOMMAND":
+      stderr(source.help());
+      break;
+
+    case "UNKNOWN_SUBCOMMAND":
+    case "UNKNOWN_OPTION":
+      stderr(kleur.red(`Error: ${error.message}`));
+      stderr(source.help());
+      break;
+
+    case "INVALID_ARGUMENT":
+    case "INVALID_OPTION":
+    case "MISSING_OPTION":
+    case "VALIDATION_ERROR":
+    case "INVALID_CHOICE":
+      stderr(kleur.red(`Error: ${error.message}`));
+      stderr("");
+      stderr(source.help());
+      break;
+
+    default:
+      throw error;
   }
 }
 

@@ -1,4 +1,7 @@
-class BaseError extends Error {
+abstract class BaseError extends Error {
+  /** Stable error code that survives bundling (unlike class names) */
+  abstract readonly code: string;
+
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = new.target.name;
@@ -16,6 +19,7 @@ export interface ErrorSource {
 
 /** Thrown when an option value is invalid (e.g., non-numeric value for number option) */
 export class InvalidOptionError extends BaseError {
+  readonly code = "INVALID_OPTION";
   /** The command where the error occurred, used for displaying help */
   source?: ErrorSource;
 
@@ -27,6 +31,7 @@ export class InvalidOptionError extends BaseError {
 
 /** Thrown when a required option is not provided */
 export class MissingOptionError extends BaseError {
+  readonly code = "MISSING_OPTION";
   /** The command where the error occurred, used for displaying help */
   source?: ErrorSource;
 
@@ -38,6 +43,7 @@ export class MissingOptionError extends BaseError {
 
 /** Thrown when a required positional argument is not provided */
 export class MissingArgumentError extends BaseError {
+  readonly code = "MISSING_ARGUMENT";
   /** The command where the error occurred, used for displaying help */
   source?: ErrorSource;
 
@@ -49,6 +55,7 @@ export class MissingArgumentError extends BaseError {
 
 /** Thrown when a positional argument value is invalid (e.g., non-numeric value for number arg) */
 export class InvalidArgumentError extends BaseError {
+  readonly code = "INVALID_ARGUMENT";
   /** The command where the error occurred, used for displaying help */
   source?: ErrorSource;
 
@@ -60,6 +67,7 @@ export class InvalidArgumentError extends BaseError {
 
 /** Thrown when a parent command is invoked without a subcommand */
 export class MissingSubcommandError extends BaseError {
+  readonly code = "MISSING_SUBCOMMAND";
   /** List of valid subcommand names */
   availableSubcommands: string[];
   /** The command where the error occurred, used for displaying help */
@@ -75,6 +83,7 @@ export class MissingSubcommandError extends BaseError {
 
 /** Thrown when an unknown subcommand is provided */
 export class UnknownSubcommandError extends BaseError {
+  readonly code = "UNKNOWN_SUBCOMMAND";
   /** List of valid subcommand names */
   availableSubcommands: string[];
   /** Suggested similar subcommands based on edit distance */
@@ -104,6 +113,7 @@ export class UnknownSubcommandError extends BaseError {
 
 /** Thrown when an unknown option/flag is provided */
 export class UnknownOptionError extends BaseError {
+  readonly code = "UNKNOWN_OPTION";
   /** The unknown option that was provided */
   unknownOption: string;
   /** List of valid option names */
@@ -135,6 +145,8 @@ export class UnknownOptionError extends BaseError {
 
 /** Thrown when attempting to define an option that conflicts with built-in flags (--help, --version) */
 export class ReservedOptionError extends BaseError {
+  readonly code = "RESERVED_OPTION";
+
   constructor(flag: string) {
     super(`Cannot override reserved flag: ${flag}`);
   }
@@ -142,6 +154,7 @@ export class ReservedOptionError extends BaseError {
 
 /** Thrown when a custom validation function returns an error */
 export class ValidationError extends BaseError {
+  readonly code = "VALIDATION_ERROR";
   /** The command where the error occurred, used for displaying help */
   source?: ErrorSource;
 
@@ -153,6 +166,7 @@ export class ValidationError extends BaseError {
 
 /** Thrown when a value is not one of the allowed choices */
 export class InvalidChoiceError extends BaseError {
+  readonly code = "INVALID_CHOICE";
   /** The value that was provided */
   value: unknown;
   /** The list of valid choices */
