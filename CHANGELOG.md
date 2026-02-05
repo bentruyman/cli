@@ -1,5 +1,15 @@
 # Changelog
 
+# [1.2.0](https://github.com/bentruyman/cli/compare/1.1.0...1.2.0) (2026-02-05)
+
+### Features
+
+- add command aliases for convenience shortcuts ([c8dddb2](https://github.com/bentruyman/cli/commit/c8dddb21412e3b7a3364ac0f1aa2b210bedf0325))
+- add custom validation for options and arguments ([d5df01b](https://github.com/bentruyman/cli/commit/d5df01b6c7317acaca6e4b26391b1b9dabc4bb53))
+- add enum/choices constraint for options and arguments ([85e0607](https://github.com/bentruyman/cli/commit/85e0607a5155e7fe5bff2f41d06f79ce1b9b2933))
+- add environment variable fallbacks for options ([de288cb](https://github.com/bentruyman/cli/commit/de288cb35efb773d309a2e376d7aa937ab067057))
+- add stable error codes for programmatic error handling ([0ae48fb](https://github.com/bentruyman/cli/commit/0ae48fbbd5c0f1d334739c37ebc72c01a79a6f41))
+
 # [1.1.0](https://github.com/bentruyman/cli/compare/1.0.3...1.1.0) (2026-01-26)
 
 ### Bug Fixes
