@@ -154,6 +154,39 @@ $ git remote add https://github.com/... --verbose
 
 The `inherits` property tells the leaf command which parent options it should parse and receive in its handler. This enables full type inference for inherited options.
 
+### Command Aliases
+
+Define alternative names for subcommands using the `aliases` property:
+
+```typescript
+const checkout = command({
+  name: "checkout",
+  aliases: ["co", "switch"],
+  args: [{ name: "branch", type: "string" }] as const,
+  handler: ([branch]) => console.log(`Switching to ${branch}`),
+});
+
+const git = command({
+  name: "git",
+  subcommands: [checkout],
+});
+
+run(git, process.argv.slice(2));
+```
+
+```bash
+$ git checkout main    # works
+$ git co main          # also works
+$ git switch main      # also works
+```
+
+Aliases appear in help text alongside the primary name:
+
+```
+Commands:
+  checkout (co, switch)  Switch branches
+```
+
 ### Command Groups
 
 Organize subcommands into groups for cleaner help output:
@@ -232,13 +265,15 @@ Examples can be simple strings or objects with `{ command, description }` for an
 
 ### Positional Args
 
-| Property      | Type      | Description                                      |
-| ------------- | --------- | ------------------------------------------------ |
-| `name`        | `string`  | Argument name shown in help                      |
-| `type`        | `string`  | `"string"`, `"number"`, or `"boolean"`           |
-| `description` | `string`  | Shown in help output                             |
-| `optional`    | `boolean` | Shows as `[name]` instead of `<name>`            |
-| `variadic`    | `boolean` | Collect remaining args into array (must be last) |
+| Property      | Type       | Description                                      |
+| ------------- | ---------- | ------------------------------------------------ |
+| `name`        | `string`   | Argument name shown in help                      |
+| `type`        | `string`   | `"string"`, `"number"`, or `"boolean"`           |
+| `description` | `string`   | Shown in help output                             |
+| `optional`    | `boolean`  | Shows as `[name]` instead of `<name>`            |
+| `variadic`    | `boolean`  | Collect remaining args into array (must be last) |
+| `choices`     | `array`    | Restrict value to predefined set                 |
+| `validate`    | `function` | Custom validation function                       |
 
 #### Variadic Arguments
 
@@ -253,17 +288,20 @@ const rm = command({
 
 ### Options
 
-| Property      | Type      | Description                                 |
-| ------------- | --------- | ------------------------------------------- |
-| `type`        | `string`  | `"string"`, `"number"`, or `"boolean"`      |
-| `long`        | `string`  | Long flag name (defaults to key name)       |
-| `short`       | `string`  | Single-character short flag                 |
-| `description` | `string`  | Shown in help output                        |
-| `default`     | `any`     | Default value when not provided             |
-| `required`    | `boolean` | Throw error if not provided                 |
-| `multiple`    | `boolean` | Collect repeated flags into array           |
-| `negatable`   | `boolean` | Allow `--no-<flag>` syntax (boolean only)   |
-| `placeholder` | `string`  | Custom placeholder in help (e.g., `"path"`) |
+| Property      | Type       | Description                                 |
+| ------------- | ---------- | ------------------------------------------- |
+| `type`        | `string`   | `"string"`, `"number"`, or `"boolean"`      |
+| `long`        | `string`   | Long flag name (defaults to key name)       |
+| `short`       | `string`   | Single-character short flag                 |
+| `description` | `string`   | Shown in help output                        |
+| `default`     | `any`      | Default value when not provided             |
+| `required`    | `boolean`  | Throw error if not provided                 |
+| `multiple`    | `boolean`  | Collect repeated flags into array           |
+| `negatable`   | `boolean`  | Allow `--no-<flag>` syntax (boolean only)   |
+| `placeholder` | `string`   | Custom placeholder in help (e.g., `"path"`) |
+| `env`         | `string`   | Environment variable name as fallback       |
+| `choices`     | `array`    | Restrict value to predefined set            |
+| `validate`    | `function` | Custom validation function                  |
 
 #### Default Values
 
@@ -291,6 +329,131 @@ tag: { type: "string", multiple: true }
 ```typescript
 color: { type: "boolean", negatable: true }
 // --color → true, --no-color → false
+```
+
+#### Environment Variable Fallbacks
+
+Use the `env` property to specify an environment variable as a fallback when the option isn't provided via CLI:
+
+```typescript
+const deploy = command({
+  name: "deploy",
+  options: {
+    token: {
+      type: "string",
+      env: "API_TOKEN",
+      description: "Authentication token",
+    },
+    port: {
+      type: "number",
+      env: "PORT",
+      default: 3000,
+    },
+    debug: {
+      type: "boolean",
+      env: "DEBUG",
+    },
+  },
+  handler: (_, { token, port, debug }) => {
+    // token comes from --token, API_TOKEN, or undefined
+    // port comes from --port, PORT, or 3000
+  },
+});
+```
+
+Value precedence: CLI argument > environment variable > default value.
+
+For booleans, the following env values are parsed as `true` (case-insensitive): `"1"`, `"true"`, `"yes"`. All other values are `false`.
+
+Environment variables are shown in help text:
+
+```
+Options:
+  --token=<str>  Authentication token [$API_TOKEN]
+  --port=<num>   (default: 3000) [$PORT]
+```
+
+#### Custom Validation
+
+Use the `validate` function for custom validation logic. Return `true` if valid, or an error message string if invalid:
+
+```typescript
+const serve = command({
+  name: "serve",
+  options: {
+    port: {
+      type: "number",
+      validate: (v) => (v >= 1 && v <= 65535) || "Port must be between 1 and 65535",
+    },
+    host: {
+      type: "string",
+      validate: (v) => v.length > 0 || "Host cannot be empty",
+    },
+  },
+  handler: (_, { port, host }) => {
+    // port is guaranteed to be 1-65535 if provided
+  },
+});
+```
+
+```bash
+$ serve --port 99999
+Error: Port must be between 1 and 65535
+```
+
+Validation runs after type coercion, so you receive the typed value (not a raw string). Validation is not called on `undefined` values (optional args/options that weren't provided). For `multiple` options, validation runs on each value individually.
+
+#### Choices (Enum Constraint)
+
+Use `choices` to restrict values to a predefined set:
+
+```typescript
+const build = command({
+  name: "build",
+  args: [
+    {
+      name: "env",
+      type: "string",
+      choices: ["development", "staging", "production"] as const,
+    },
+  ] as const,
+  options: {
+    format: {
+      type: "string",
+      choices: ["json", "yaml", "toml"] as const,
+      default: "json",
+    },
+    level: {
+      type: "number",
+      choices: [1, 2, 3] as const,
+    },
+  },
+  handler: ([env], { format, level }) => {
+    // env: "development" | "staging" | "production"
+    // format: "json" | "yaml" | "toml"
+    // level: 1 | 2 | 3 | undefined
+  },
+});
+```
+
+Use `as const` on the choices array for precise type inference.
+
+Invalid choices show a helpful error:
+
+```bash
+$ build production --format xml
+Error: Invalid value 'xml' for format. Valid choices: json, yaml, toml
+```
+
+Help text displays available choices:
+
+```
+Arguments:
+  <env>  (development|staging|production)
+
+Options:
+  --format=<json|yaml|toml>  (default: json)
+  --level=<1|2|3>
 ```
 
 ### Async Handlers
@@ -329,6 +492,8 @@ try {
 | `UnknownOptionError`     | Unknown flag provided                       |
 | `MissingSubcommandError` | Parent command invoked without subcommand   |
 | `UnknownSubcommandError` | Unknown subcommand name (shows suggestions) |
+| `ValidationError`        | Custom validation function returned error   |
+| `InvalidChoiceError`     | Value not in allowed choices                |
 
 ### Type Safety
 
