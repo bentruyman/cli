@@ -34,6 +34,7 @@ export type {
   CommandOptions,
   Example,
   Examples,
+  HybridCommandOptions,
   LeafCommandOptions,
   MergeOptions,
   Option,

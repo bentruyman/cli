@@ -38,6 +38,17 @@ export interface ParentCommandInfo {
   examples?: Examples;
 }
 
+export interface HybridCommandInfo {
+  name: string;
+  description?: string;
+  args: readonly PositionalArg[];
+  options: NormalizedOptions;
+  inherits?: NormalizedOptions;
+  subcommands: Map<string, AnyCommand>;
+  groups?: CommandGroups;
+  examples?: Examples;
+}
+
 function formatExamples(examples: Examples): string[] {
   const output: string[] = [kleur.bold("Examples:")];
 
@@ -232,6 +243,71 @@ export function formatParentHelp(command: ParentCommandInfo): string {
   }
 
   output.push("");
+  const mergedOptions = { ...command.options, ...BUILTIN_OPTIONS };
+  output.push(...formatOptions(mergedOptions));
+
+  return output.join("\n");
+}
+
+export function formatHybridHelp(command: HybridCommandInfo): string {
+  const output: string[] = [""];
+
+  if (command.description) {
+    output.push(command.description);
+    output.push("");
+  }
+
+  if (command.examples && command.examples.length > 0) {
+    output.push(...formatExamples(command.examples));
+    output.push("");
+  }
+
+  // Usage line for hybrid commands — [command] is optional since handler is the default
+  let usage = `  ${kleur.blue(command.name)} ${kleur.cyan("[options]")} ${kleur.yellow("[command]")}`;
+  if (command.args.length > 0) {
+    const formattedArgs = command.args.map((arg) => kleur.green(formatArgName(arg)));
+    usage += ` ${formattedArgs.join(" ")}`;
+  }
+  output.push(kleur.bold("Usage:"));
+  output.push(usage);
+  output.push("");
+
+  // Subcommands section
+  const subcommandEntries = Array.from(command.subcommands.values()).filter((sub) => !sub.hidden);
+  const maxNameLen =
+    subcommandEntries.length > 0
+      ? Math.max(...subcommandEntries.map((s) => getCommandDisplayWidth(s)))
+      : 0;
+
+  if (command.groups && Object.keys(command.groups).length > 0) {
+    output.push(
+      ...formatGroupedCommands(
+        { ...command, subcommands: command.subcommands } as ParentCommandInfo,
+        maxNameLen,
+      ),
+    );
+  } else {
+    output.push(kleur.bold("Commands:"));
+    for (const sub of subcommandEntries) {
+      const displayName = formatCommandNameWithAliases(sub);
+      const padding = " ".repeat(maxNameLen - displayName.length + 2);
+      output.push(`  ${kleur.yellow(displayName)}${padding}${sub.description ?? ""}`);
+    }
+  }
+  output.push("");
+
+  // Arguments section
+  if (command.args.length > 0) {
+    output.push(...formatArguments(command.args));
+    output.push("");
+  }
+
+  // Inherited (global) options
+  if (command.inherits && Object.keys(command.inherits).length > 0) {
+    output.push(...formatOptionsWithTitle(command.inherits, "Global Options:"));
+    output.push("");
+  }
+
   const mergedOptions = { ...command.options, ...BUILTIN_OPTIONS };
   output.push(...formatOptions(mergedOptions));
 

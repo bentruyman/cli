@@ -343,9 +343,56 @@ export type ParentCommandOptions<O extends Options = Options> = BaseCommandOptio
   args?: never;
 };
 
-/** Union of leaf and parent command options */
+/**
+ * Configuration for a hybrid command (a command with both a handler and subcommands).
+ * The handler runs as the default when no subcommand matches.
+ *
+ * @example
+ * ```typescript
+ * const docker: HybridCommandOptions = {
+ *   name: "docker",
+ *   description: "Container management",
+ *   args: [{ name: "info", type: "string", optional: true }] as const,
+ *   options: { verbose: { type: "boolean" } },
+ *   handler: ([info], { verbose }) => { console.log("default handler"); },
+ *   subcommands: [run, build, push]
+ * };
+ * ```
+ */
+export type HybridCommandOptions<
+  T extends readonly PositionalArg[] = readonly PositionalArg[],
+  O extends Options = Options,
+  I extends Options = {},
+> = BaseCommandOptions & {
+  /** Positional arguments for the default handler. Use `as const` for type inference. */
+  args?: T;
+  /** Option definitions */
+  options?: O;
+  /**
+   * Options inherited from parent commands.
+   * These are merged with own options and passed to the handler.
+   */
+  inherits?: I;
+  /**
+   * Handler function called when no subcommand matches.
+   * Receives parsed args as a tuple and options as an object.
+   */
+  handler: (
+    args: ArgsToValues<T>,
+    options: OptionsToValues<MergeOptions<I, O>>,
+  ) => void | Promise<void>;
+  /** Array of subcommands */
+  subcommands: AnyCommand[];
+  /**
+   * Optional grouping of subcommands for help display.
+   * Keys are group names, values are arrays of subcommand names.
+   */
+  groups?: CommandGroups;
+};
+
+/** Union of leaf, parent, and hybrid command options */
 export type CommandOptions<
   T extends readonly PositionalArg[] = readonly PositionalArg[],
   O extends Options = Options,
   I extends Options = {},
-> = LeafCommandOptions<T, O, I> | ParentCommandOptions<O>;
+> = LeafCommandOptions<T, O, I> | ParentCommandOptions<O> | HybridCommandOptions<T, O, I>;

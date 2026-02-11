@@ -791,4 +791,102 @@ ${kleur.bold("Options:")}
       expect(help).not.toContain("hidden");
     });
   });
+
+  describe("hybrid commands", () => {
+    it("shows usage with [command] instead of <command>", () => {
+      const sub = command({
+        name: "sub",
+        description: "A subcommand",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        description: "A hybrid CLI",
+        args: [{ name: "name", type: "string", optional: true }] as const,
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.yellow("[command]"));
+      expect(help).not.toContain(kleur.yellow("<command>"));
+    });
+
+    it("shows both Commands section and Arguments/Options sections", () => {
+      const sub = command({
+        name: "deploy",
+        description: "Deploy the app",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        description: "My hybrid CLI",
+        args: [{ name: "target", type: "string", optional: true }] as const,
+        options: {
+          verbose: { type: "boolean", description: "Verbose output" },
+        },
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain("My hybrid CLI");
+      expect(help).toContain(kleur.bold("Commands:"));
+      expect(help).toContain(kleur.yellow("deploy"));
+      expect(help).toContain("Deploy the app");
+      expect(help).toContain(kleur.bold("Arguments:"));
+      expect(help).toContain("[target]");
+      expect(help).toContain(kleur.bold("Options:"));
+      expect(help).toContain("--verbose");
+      expect(help).toContain("Verbose output");
+    });
+
+    it("shows inherited options as Global Options", () => {
+      const GlobalOptions = {
+        debug: { type: "boolean", description: "Enable debug mode" },
+      } as const;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        inherits: GlobalOptions,
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Global Options:"));
+      expect(help).toContain("--debug");
+      expect(help).toContain("Enable debug mode");
+    });
+
+    it("shows grouped subcommands", () => {
+      const init = command({ name: "init", description: "Initialize", handler: () => {} });
+      const build = command({ name: "build", description: "Build", handler: () => {} });
+
+      const cli = command({
+        name: "my-cli",
+        groups: {
+          Project: ["init", "build"],
+        },
+        subcommands: [init, build],
+        handler: () => {},
+      });
+
+      const help = cli.help();
+
+      expect(help).toContain(kleur.bold("Project:"));
+      expect(help).toContain("init");
+      expect(help).toContain("build");
+    });
+  });
 });

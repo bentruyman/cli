@@ -13,13 +13,14 @@ import {
   InvalidChoiceError,
 } from "./errors";
 import { findSuggestions } from "./suggestions";
-import { formatHelp, formatParentHelp } from "./help";
+import { formatHelp, formatHybridHelp, formatParentHelp } from "./help";
 import type {
   AnyCommand,
   ArgsToValues,
   CommandGroups,
   CommandOptions,
   Examples,
+  HybridCommandOptions,
   LeafCommandOptions,
   MergeOptions,
   NormalizedOptions,
@@ -29,10 +30,25 @@ import type {
   PositionalArg,
 } from "./types";
 
+function isHybridOptions<T extends readonly PositionalArg[], O extends Options, I extends Options>(
+  opts: CommandOptions<T, O, I>,
+): opts is HybridCommandOptions<T, O, I> {
+  return (
+    "subcommands" in opts &&
+    Array.isArray(opts.subcommands) &&
+    "handler" in opts &&
+    typeof opts.handler === "function"
+  );
+}
+
 function isParentOptions<T extends readonly PositionalArg[], O extends Options, I extends Options>(
   opts: CommandOptions<T, O, I>,
 ): opts is ParentCommandOptions<O> {
-  return "subcommands" in opts && Array.isArray(opts.subcommands);
+  return (
+    "subcommands" in opts &&
+    Array.isArray(opts.subcommands) &&
+    !("handler" in opts && typeof opts.handler === "function")
+  );
 }
 
 function normalizeOptions(options: Options): NormalizedOptions {
@@ -102,7 +118,34 @@ export class Command<
     this.examples = cmdOptions.examples;
     this.options = normalizeOptions(cmdOptions.options ?? {});
 
-    if (isParentOptions(cmdOptions)) {
+    if (isHybridOptions(cmdOptions)) {
+      if (cmdOptions.subcommands.length === 0) {
+        throw new Error("Hybrid command must have at least one subcommand");
+      }
+      this.args = cmdOptions.args ?? ([] as unknown as T);
+      this.inherits = normalizeOptions(cmdOptions.inherits ?? {});
+      this.handler = cmdOptions.handler;
+      this.subcommands = new Map(cmdOptions.subcommands.map((cmd) => [cmd.name, cmd]));
+
+      // Build alias map for fast lookup
+      this.aliasMap = new Map();
+      for (const cmd of cmdOptions.subcommands) {
+        if (cmd.aliases) {
+          for (const alias of cmd.aliases) {
+            this.aliasMap.set(alias, cmd);
+          }
+        }
+      }
+
+      this.validateArgs();
+      this.validateOptionConflicts();
+      this.validateReservedOptions(this.inherits);
+
+      if (cmdOptions.groups) {
+        this.validateGroups(cmdOptions.groups);
+        this.groups = cmdOptions.groups;
+      }
+    } else if (isParentOptions(cmdOptions)) {
       if (cmdOptions.subcommands.length === 0) {
         throw new Error("Parent command must have at least one subcommand");
       }
@@ -185,9 +228,16 @@ export class Command<
     }
   }
 
-  /** Returns true if this command has subcommands (is a parent command) */
+  /** Returns true if this command has subcommands (is a parent command or hybrid) */
   isParent(): boolean {
     return this.subcommands !== undefined && this.subcommands.size > 0;
+  }
+
+  /** Returns true if this command has both a handler and subcommands */
+  isHybrid(): boolean {
+    return (
+      this.subcommands !== undefined && this.subcommands.size > 0 && this.handler !== undefined
+    );
   }
 
   /** Get a subcommand by name or alias, or undefined if not found */
@@ -219,6 +269,18 @@ export class Command<
    * @returns Colorized help string ready for display
    */
   help(): string {
+    if (this.isHybrid() && this.subcommands) {
+      return formatHybridHelp({
+        name: this.name,
+        description: this.description,
+        args: this.args,
+        options: this.options,
+        inherits: this.inherits,
+        subcommands: this.subcommands,
+        groups: this.groups,
+        examples: this.examples,
+      });
+    }
     if (this.isParent() && this.subcommands) {
       return formatParentHelp({
         name: this.name,
@@ -248,7 +310,9 @@ export class Command<
    * @throws {UnknownSubcommandError} When an unknown subcommand is provided
    */
   run(argv: string[], inheritedOptions: Record<string, unknown> = {}): void | Promise<void> {
-    if (this.isParent()) {
+    if (this.isHybrid()) {
+      return this.runHybrid(argv, inheritedOptions);
+    } else if (this.isParent()) {
       return this.runParent(argv, inheritedOptions);
     } else {
       return this.runLeaf(argv, inheritedOptions);
@@ -283,6 +347,32 @@ export class Command<
 
     const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
     return subcommand.run(remainingArgv, mergedInherited);
+  }
+
+  private runHybrid(
+    argv: string[],
+    inheritedOptions: Record<string, unknown>,
+  ): void | Promise<void> {
+    // Parse without throwOnUnknown to check if first positional is a subcommand
+    const parsed = this.parseArgvWithOptions(argv, this.options);
+    const firstPositional = parsed._[0];
+
+    if (firstPositional && !firstPositional.startsWith("-")) {
+      const subcommand = this.getSubcommand(firstPositional);
+      if (subcommand) {
+        // Dispatch to subcommand like a parent
+        const parentOpts = this.extractOptions(parsed);
+        const definedParentOpts = Object.fromEntries(
+          Object.entries(parentOpts).filter(([, v]) => v !== undefined),
+        );
+        const mergedInherited = { ...inheritedOptions, ...definedParentOpts };
+        const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
+        return subcommand.run(remainingArgv, mergedInherited);
+      }
+    }
+
+    // No subcommand match — fall through to leaf handler
+    return this.runLeaf(argv, inheritedOptions);
   }
 
   private runLeaf(argv: string[], inheritedOptions: Record<string, unknown>): void | Promise<void> {
@@ -694,6 +784,14 @@ export class Command<
  * });
  * ```
  */
+export function command<
+  const T extends readonly PositionalArg[],
+  const O extends Options,
+  const I extends Options,
+>(options: HybridCommandOptions<T, O, I> & { inherits: I }): Command<T, O, I>;
+export function command<const T extends readonly PositionalArg[], const O extends Options>(
+  options: Omit<HybridCommandOptions<T, O, {}>, "inherits">,
+): Command<T, O, {}>;
 export function command<
   const T extends readonly PositionalArg[],
   const O extends Options,

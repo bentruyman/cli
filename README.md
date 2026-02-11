@@ -99,7 +99,7 @@ HELLO, ADA!
 | `groups`      | `CommandGroups`           | No       | Group subcommands in help      |
 | `examples`    | `Examples`                | No       | Usage examples in help         |
 
-\* A command has either `handler` OR `subcommands`, never both.
+\* A command has `handler`, `subcommands`, or both. When both are provided (hybrid command), the handler runs as the default when no subcommand matches.
 
 ### Subcommands
 

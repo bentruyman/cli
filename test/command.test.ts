@@ -2596,3 +2596,291 @@ describe("subcommands", () => {
     });
   });
 });
+
+describe("hybrid commands", () => {
+  describe("routing", () => {
+    it("dispatches to subcommand by name", () => {
+      let subCalled = false;
+      let handlerCalled = false;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {
+          subCalled = true;
+        },
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {
+          handlerCalled = true;
+        },
+      });
+
+      cli.run(["sub"]);
+
+      expect(subCalled).toBeTrue();
+      expect(handlerCalled).toBeFalse();
+    });
+
+    it("dispatches to subcommand by alias", () => {
+      let subCalled = false;
+
+      const sub = command({
+        name: "checkout",
+        aliases: ["co"],
+        handler: () => {
+          subCalled = true;
+        },
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      cli.run(["co"]);
+
+      expect(subCalled).toBeTrue();
+    });
+
+    it("runs handler when no args provided", () => {
+      let handlerCalled = false;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {
+          handlerCalled = true;
+        },
+      });
+
+      cli.run([]);
+
+      expect(handlerCalled).toBeTrue();
+    });
+
+    it("runs handler when first positional is not a subcommand", () => {
+      let receivedArg: string | undefined;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        args: [{ name: "name", type: "string", optional: true }] as const,
+        subcommands: [sub],
+        handler: ([name]) => {
+          receivedArg = name;
+        },
+      });
+
+      cli.run(["hello"]);
+
+      expect(receivedArg).toBe("hello");
+    });
+  });
+
+  describe("args and options", () => {
+    it("handler receives typed args and options", () => {
+      let receivedName: string | undefined;
+      let receivedVerbose = false;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        args: [{ name: "name", type: "string" }] as const,
+        options: {
+          verbose: { type: "boolean" },
+        },
+        subcommands: [sub],
+        handler: ([name], { verbose }) => {
+          receivedName = name;
+          receivedVerbose = verbose;
+        },
+      });
+
+      cli.run(["--verbose", "myarg"]);
+
+      expect(receivedName).toBe("myarg");
+      expect(receivedVerbose).toBeTrue();
+    });
+
+    it("subcommands receive inherited options", () => {
+      let receivedVerbose = false;
+
+      const GlobalOptions = {
+        verbose: { type: "boolean" },
+      } as const;
+
+      const deploy = command({
+        name: "deploy",
+        inherits: GlobalOptions,
+        handler: (_, { verbose }) => {
+          receivedVerbose = verbose;
+        },
+      });
+
+      const cli = command({
+        name: "cli",
+        options: GlobalOptions,
+        subcommands: [deploy],
+        handler: () => {},
+      });
+
+      cli.run(["--verbose", "deploy"]);
+
+      expect(receivedVerbose).toBeTrue();
+    });
+  });
+
+  describe("errors", () => {
+    it("does NOT throw MissingSubcommandError when no args", () => {
+      let handlerCalled = false;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {
+          handlerCalled = true;
+        },
+      });
+
+      expect(() => cli.run([])).not.toThrow();
+      expect(handlerCalled).toBeTrue();
+    });
+
+    it("throws UnknownOptionError for unknown flags in handler mode", () => {
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      expect(() => cli.run(["--unknown"])).toThrow(UnknownOptionError);
+    });
+  });
+
+  describe("help", () => {
+    it("--help shows hybrid help with subcommands and args/options", () => {
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const sub = command({
+        name: "sub",
+        description: "A subcommand",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        description: "A hybrid CLI",
+        args: [{ name: "name", type: "string", optional: true }] as const,
+        options: {
+          verbose: { type: "boolean", description: "Verbose output" },
+        },
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      run(cli, ["--help"]);
+
+      const output = stdoutSpy.mock.calls[0]?.[0] as string;
+      expect(output).toContain("A hybrid CLI");
+      expect(output).toContain("[command]");
+      expect(output).toContain("Commands:");
+      expect(output).toContain("sub");
+      expect(output).toContain("A subcommand");
+      expect(output).toContain("[name]");
+      expect(output).toContain("--verbose");
+
+      stdoutSpy.mockRestore();
+    });
+  });
+
+  describe("async", () => {
+    it("async handler works", async () => {
+      let executed = false;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: async () => {
+          await Promise.resolve();
+          executed = true;
+        },
+      });
+
+      await cli.run([]);
+
+      expect(executed).toBeTrue();
+    });
+  });
+
+  describe("isHybrid", () => {
+    it("returns true for hybrid commands", () => {
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      expect(cli.isHybrid()).toBeTrue();
+    });
+
+    it("returns false for leaf commands", () => {
+      const leaf = command({
+        name: "leaf",
+        handler: () => {},
+      });
+
+      expect(leaf.isHybrid()).toBeFalse();
+    });
+
+    it("returns false for parent commands", () => {
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const parent = command({
+        name: "parent",
+        subcommands: [sub],
+      });
+
+      expect(parent.isHybrid()).toBeFalse();
+    });
+  });
+});
