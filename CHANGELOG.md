@@ -1,5 +1,11 @@
 # Changelog
 
+# [1.3.0](https://github.com/bentruyman/cli/compare/1.2.0...1.3.0) (2026-02-11)
+
+### Features
+
+- add hybrid commands with both handlers and subcommands ([f5402d6](https://github.com/bentruyman/cli/commit/f5402d6c20946cda73bfe4e9b61200fcc8b536d4))
+
 # [1.2.0](https://github.com/bentruyman/cli/compare/1.1.0...1.2.0) (2026-02-05)
 
 ### Features
