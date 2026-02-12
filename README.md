@@ -36,6 +36,7 @@ That's it. Your args are typed. Your handler knows what it's getting.
 - **Built-in help** - `-h` and `--help` just work
 - **Graceful errors** - `run()` catches known errors and prints them pretty
 - **Short & long flags** - `-v` and `--verbose`, the way nature intended
+- **Shell completions** - Generate completions for bash, zsh, and fish
 
 ## Full Example
 
@@ -455,6 +456,23 @@ Options:
   --format=<json|yaml|toml>  (default: json)
   --level=<1|2|3>
 ```
+
+### Shell Completions
+
+`run()` automatically adds a `completions` subcommand that generates shell completion scripts for bash, zsh, and fish:
+
+```bash
+# Bash - add to ~/.bashrc
+eval "$(my-cli completions bash)"
+
+# Zsh - add to ~/.zshrc (before compinit)
+eval "$(my-cli completions zsh)"
+
+# Fish - save to completions directory
+my-cli completions fish > ~/.config/fish/completions/my-cli.fish
+```
+
+The generated scripts provide context-aware completions for subcommands, options (including short flags), and nested command trees. Hidden commands are excluded automatically.
 
 ### Async Handlers
 
