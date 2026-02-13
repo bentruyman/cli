@@ -1,5 +1,11 @@
 # Changelog
 
+# [1.4.0](https://github.com/bentruyman/cli/compare/1.3.0...1.4.0) (2026-02-13)
+
+### Features
+
+- improve unknown subcommand handling in hybrid commands ([ba9dc3c](https://github.com/bentruyman/cli/commit/ba9dc3ce349af9bc904fbfee21f8256916adb448))
+
 # [1.3.0](https://github.com/bentruyman/cli/compare/1.2.0...1.3.0) (2026-02-11)
 
 ### Features
