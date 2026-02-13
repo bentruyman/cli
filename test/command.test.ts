@@ -2768,6 +2768,43 @@ describe("hybrid commands", () => {
       expect(handlerCalled).toBeTrue();
     });
 
+    it("throws UnknownSubcommandError for unknown subcommand when no args defined", () => {
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [sub],
+        handler: () => {},
+      });
+
+      expect(() => cli.run(["unknown"])).toThrow(UnknownSubcommandError);
+    });
+
+    it("falls through to handler for unknown positional when args are defined", () => {
+      let receivedArg: string | undefined;
+
+      const sub = command({
+        name: "sub",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "cli",
+        args: [{ name: "name", type: "string", optional: true }] as const,
+        subcommands: [sub],
+        handler: ([name]) => {
+          receivedArg = name;
+        },
+      });
+
+      cli.run(["notasub"]);
+
+      expect(receivedArg).toBe("notasub");
+    });
+
     it("throws UnknownOptionError for unknown flags in handler mode", () => {
       const sub = command({
         name: "sub",

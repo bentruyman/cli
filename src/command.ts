@@ -369,6 +369,14 @@ export class Command<
         const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
         return subcommand.run(remainingArgv, mergedInherited);
       }
+
+      // No subcommand match and no positional args to consume it — unknown subcommand
+      if (this.args.length === 0) {
+        const available = this.getSubcommandNames();
+        const allNames = this.getAllSubcommandNames();
+        const suggestions = findSuggestions(firstPositional, allNames);
+        throw new UnknownSubcommandError(firstPositional, available, suggestions, this);
+      }
     }
 
     // No subcommand match — fall through to leaf handler
