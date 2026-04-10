@@ -1811,6 +1811,205 @@ describe("run", () => {
 
       expect(executed).toBeTrue();
     });
+
+    it("shows help and skips handler when Command.run receives --help", () => {
+      let executed = false;
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const cmd = command({
+        name: "my-cli",
+        description: "Test CLI",
+        handler: () => {
+          executed = true;
+        },
+      });
+
+      cmd.run(["--help"]);
+
+      expect(executed).toBeFalse();
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Test CLI");
+
+      stdoutSpy.mockRestore();
+    });
+
+    it("shows help instead of treating --help as missing required variadic arg", () => {
+      let executed = false;
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const cmd = command({
+        name: "my-cli",
+        description: "Variadic CLI",
+        args: [{ name: "files", type: "string", variadic: true }] as const,
+        handler: () => {
+          executed = true;
+        },
+      });
+
+      expect(() => cmd.run(["--help"])).not.toThrow();
+      expect(executed).toBeFalse();
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Variadic CLI");
+
+      stdoutSpy.mockRestore();
+    });
+
+    it("passes literal --help through to variadic args after --", async () => {
+      let files: string[] = [];
+
+      const cmd = command({
+        name: "my-cli",
+        args: [{ name: "files", type: "string", variadic: true }] as const,
+        handler: ([receivedFiles]) => {
+          files = receivedFiles;
+        },
+      });
+
+      await run(cmd, ["--", "--help", "foo"]);
+
+      expect(files).toEqual(["--help", "foo"]);
+    });
+
+    it("routes Command.run help to the correct subcommand", () => {
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const add = command({
+        name: "add",
+        description: "Add subcommand help",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        description: "Parent CLI help",
+        subcommands: [add],
+      });
+
+      cli.run(["add", "--help"]);
+
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Add subcommand help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Parent CLI help");
+
+      stdoutSpy.mockRestore();
+    });
+
+    it("routes hybrid Command.run help to the correct subcommand", () => {
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const add = command({
+        name: "add",
+        description: "Add subcommand help",
+        handler: () => {},
+      });
+
+      const cli = command({
+        name: "my-cli",
+        description: "Hybrid CLI help",
+        subcommands: [add],
+        handler: () => {},
+      });
+
+      cli.run(["add", "--help"]);
+
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Add subcommand help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Hybrid CLI help");
+
+      stdoutSpy.mockRestore();
+    });
+
+    it("routes nested Command.run help through interleaved parent options", () => {
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const deep = command({
+        name: "deep",
+        description: "Deep subcommand help",
+        handler: () => {},
+      });
+
+      const level2 = command({
+        name: "level2",
+        description: "Level 2 help",
+        options: {
+          verbose: { type: "boolean", long: "verbose" },
+        },
+        subcommands: [deep],
+      });
+
+      const level1 = command({
+        name: "level1",
+        description: "Level 1 help",
+        options: {
+          verbose: { type: "boolean", long: "verbose" },
+        },
+        subcommands: [level2],
+      });
+
+      const root = command({
+        name: "root",
+        description: "Root help",
+        options: {
+          global: { type: "boolean", long: "global" },
+        },
+        subcommands: [level1],
+      });
+
+      root.run(["--global", "level1", "--verbose", "level2", "deep", "--help"]);
+
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Deep subcommand help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Level 1 help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Root help");
+
+      stdoutSpy.mockRestore();
+    });
+
+    it("routes nested run() help through interleaved parent options", async () => {
+      const stdoutSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      const deep = command({
+        name: "deep",
+        description: "Deep subcommand help",
+        handler: () => {},
+      });
+
+      const level2 = command({
+        name: "level2",
+        description: "Level 2 help",
+        options: {
+          verbose: { type: "boolean", long: "verbose" },
+        },
+        subcommands: [deep],
+      });
+
+      const level1 = command({
+        name: "level1",
+        description: "Level 1 help",
+        options: {
+          verbose: { type: "boolean", long: "verbose" },
+        },
+        subcommands: [level2],
+      });
+
+      const root = command({
+        name: "root",
+        description: "Root help",
+        options: {
+          global: { type: "boolean", long: "global" },
+        },
+        subcommands: [level1],
+      });
+
+      await run(root, ["--global", "level1", "--verbose", "level2", "deep", "--help"]);
+
+      expect(stdoutSpy).toHaveBeenCalled();
+      expect(stdoutSpy.mock.calls[0]?.[0]).toContain("Deep subcommand help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Level 1 help");
+      expect(stdoutSpy.mock.calls[0]?.[0]).not.toContain("Root help");
+
+      stdoutSpy.mockRestore();
+    });
   });
 
   describe("version", () => {

@@ -30,6 +30,34 @@ import type {
   PositionalArg,
 } from "./types";
 
+function hasBuiltinHelpFlag(argv: string[]): boolean {
+  for (const arg of argv) {
+    if (arg === "--") return false;
+    if (arg === "--help" || arg === "-h") return true;
+  }
+  return false;
+}
+
+function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
+  if (!(cmd instanceof Command) || !cmd.isParent()) {
+    return cmd;
+  }
+
+  for (const [index, arg] of argv.entries()) {
+    if (arg === "--") break;
+    if (arg === "--help" || arg === "-h") continue;
+    if (arg.startsWith("-")) continue;
+
+    const subCmd = cmd.getSubcommand(arg);
+    if (subCmd) {
+      return findHelpTarget(subCmd, argv.slice(index + 1));
+    }
+    break;
+  }
+
+  return cmd;
+}
+
 function isHybridOptions<T extends readonly PositionalArg[], O extends Options, I extends Options>(
   opts: CommandOptions<T, O, I>,
 ): opts is HybridCommandOptions<T, O, I> {
@@ -310,6 +338,11 @@ export class Command<
    * @throws {UnknownSubcommandError} When an unknown subcommand is provided
    */
   run(argv: string[], inheritedOptions: Record<string, unknown> = {}): void | Promise<void> {
+    if (hasBuiltinHelpFlag(argv)) {
+      process.stdout.write(findHelpTarget(this, argv).help() + "\n");
+      return;
+    }
+
     if (this.isHybrid()) {
       return this.runHybrid(argv, inheritedOptions);
     } else if (this.isParent()) {

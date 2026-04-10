@@ -53,6 +53,14 @@ function stderr(message: string): void {
 
 const VALID_SHELLS: Shell[] = ["bash", "zsh", "fish"];
 
+function hasBuiltinFlag(argv: string[], long: string, short: string): boolean {
+  for (const arg of argv) {
+    if (arg === "--") return false;
+    if (arg === long || arg === short) return true;
+  }
+  return false;
+}
+
 function handleCompletions(cmd: Command<any, any, any>, argv: string[]): void {
   const shell = argv[0];
   if (!shell || !VALID_SHELLS.includes(shell as Shell)) {
@@ -67,13 +75,14 @@ function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
     return cmd;
   }
 
-  for (const arg of argv) {
+  for (const [index, arg] of argv.entries()) {
+    if (arg === "--") break;
     if (arg === "--help" || arg === "-h") continue;
     if (arg.startsWith("-")) continue;
 
     const subCmd = cmd.getSubcommand(arg);
     if (subCmd) {
-      return findHelpTarget(subCmd, argv.slice(1));
+      return findHelpTarget(subCmd, argv.slice(index + 1));
     }
     break;
   }
@@ -150,7 +159,7 @@ export async function run(cmd: Command<any, any, any>, argv: string[]): Promise<
     return;
   }
 
-  if (argv.includes("--version") || argv.includes("-V")) {
+  if (hasBuiltinFlag(argv, "--version", "-V")) {
     if (cmd.version) {
       stdout(cmd.version);
     } else {
@@ -159,7 +168,7 @@ export async function run(cmd: Command<any, any, any>, argv: string[]): Promise<
     return;
   }
 
-  if (argv.includes("--help") || argv.includes("-h")) {
+  if (hasBuiltinFlag(argv, "--help", "-h")) {
     const helpTarget = findHelpTarget(cmd, argv);
     stdout(helpTarget.help());
     return;
