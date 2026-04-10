@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1](https://github.com/bentruyman/cli/compare/1.4.0...1.4.1) (2026-04-10)
+
+### Bug Fixes
+
+- handle built-in help flags in Command.run ([fef9ff0](https://github.com/bentruyman/cli/commit/fef9ff0e8397bca8f211cca7dd1c821a67497d1f))
+
 # [1.4.0](https://github.com/bentruyman/cli/compare/1.3.0...1.4.0) (2026-02-13)
 
 ### Features
