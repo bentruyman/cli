@@ -30,6 +30,8 @@ import type {
   PositionalArg,
 } from "./types";
 
+const STDIN_POSITIONAL_SENTINEL = "\u0000@truyman/cli-stdin\u0000";
+
 function hasBuiltinHelpFlag(argv: string[]): boolean {
   for (const arg of argv) {
     if (arg === "--") return false;
@@ -85,6 +87,14 @@ function normalizeOptions(options: Options): NormalizedOptions {
     normalized[key] = { ...opt, long: opt.long ?? key };
   }
   return normalized;
+}
+
+async function readStdin(): Promise<string> {
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+  return input;
 }
 
 /**
@@ -214,6 +224,12 @@ export class Command<
       // variadicIndex is valid since findIndex returned a non-negative index
       const argName = variadicArg?.name ?? "unknown";
       throw new Error(`Variadic argument '${argName}' must be the last argument`);
+    }
+
+    for (const arg of this.args) {
+      if (arg.allowStdin && arg.type !== "string") {
+        throw new Error(`Argument '${arg.name}' can only allow stdin when type is 'string'`);
+      }
     }
   }
 
@@ -419,7 +435,21 @@ export class Command<
   private runLeaf(argv: string[], inheritedOptions: Record<string, unknown>): void | Promise<void> {
     const mergedOptionDefs = { ...this.inherits, ...this.options };
     const parsed = this.parseArgvWithOptions(argv, mergedOptionDefs, true);
+    const resolved = this.resolveStdinArgs(parsed);
 
+    if (resolved instanceof Promise) {
+      return resolved.then((resolvedParsed) =>
+        this.runLeafWithParsedArgs(resolvedParsed, inheritedOptions),
+      );
+    }
+
+    return this.runLeafWithParsedArgs(resolved, inheritedOptions);
+  }
+
+  private runLeafWithParsedArgs(
+    parsed: mri.Argv,
+    inheritedOptions: Record<string, unknown>,
+  ): void | Promise<void> {
     const args = this.extractArgs(parsed);
     const ownOptions = this.extractOptionsFromDefs(parsed, this.options);
     const inheritedFromArgv = this.extractOptionsFromDefs(parsed, this.inherits);
@@ -435,6 +465,42 @@ export class Command<
     }
 
     return this.handler(args, options as OptionsToValues<MergeOptions<I, O>>);
+  }
+
+  private resolveStdinArgs(parsed: mri.Argv): mri.Argv | Promise<mri.Argv> {
+    let stdin: Promise<string> | undefined;
+    const replacements: Promise<void>[] = [];
+    const positionals = [...parsed._];
+
+    for (let i = 0; i < this.args.length; i++) {
+      const arg = this.args[i];
+      if (!arg?.allowStdin) continue;
+
+      const replaceAt = (index: number): void => {
+        if (positionals[index] !== "-") return;
+        stdin ??= readStdin();
+        replacements.push(
+          stdin.then((input) => {
+            positionals[index] = input;
+          }),
+        );
+      };
+
+      if (arg.variadic) {
+        for (let j = i; j < positionals.length; j++) {
+          replaceAt(j);
+        }
+        break;
+      }
+
+      replaceAt(i);
+    }
+
+    if (replacements.length === 0) {
+      return parsed;
+    }
+
+    return Promise.all(replacements).then(() => ({ ...parsed, _: positionals }));
   }
 
   /**
@@ -599,11 +665,13 @@ export class Command<
       }
     }
 
-    const result = mri(argv, {
+    const normalizedArgv = argv.map((arg) => (arg === "-" ? STDIN_POSITIONAL_SENTINEL : arg));
+    const result = mri(normalizedArgv, {
       boolean: booleanFlags,
       string: stringFlags,
       alias: aliases,
     });
+    result._ = result._.map((arg) => (arg === STDIN_POSITIONAL_SENTINEL ? "-" : arg));
 
     // Check for unknown flags after parsing by comparing parsed keys against known flags
     // Only throw for unknown flags in leaf commands (not parent commands)

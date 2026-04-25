@@ -273,8 +273,27 @@ Examples can be simple strings or objects with `{ command, description }` for an
 | `description` | `string`   | Shown in help output                             |
 | `optional`    | `boolean`  | Shows as `[name]` instead of `<name>`            |
 | `variadic`    | `boolean`  | Collect remaining args into array (must be last) |
+| `allowStdin`  | `boolean`  | Allow `-` to read a string arg from stdin        |
 | `choices`     | `array`    | Restrict value to predefined set                 |
 | `validate`    | `function` | Custom validation function                       |
+
+#### Stdin Arguments
+
+Enable `allowStdin` on string positional args to support the conventional `-` sentinel:
+
+```typescript
+const echo = command({
+  name: "echo",
+  args: [{ name: "input", type: "string", allowStdin: true }] as const,
+  handler: ([input]) => console.log(input),
+});
+```
+
+```bash
+$ echo "hello world" | my-cli -
+```
+
+The handler receives the raw stdin content. Without `allowStdin`, `-` remains a normal string argument.
 
 #### Variadic Arguments
 
