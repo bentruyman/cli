@@ -30,6 +30,8 @@ export type PositionalArg = {
   optional?: boolean;
   /** If true, collects all remaining positional arguments into an array. Must be the last arg. */
   variadic?: boolean;
+  /** If true, a literal "-" value reads this string argument from stdin. */
+  allowStdin?: boolean;
   /**
    * Restricts the argument value to a predefined set of choices.
    * Use `as const` for type inference.

@@ -127,6 +127,9 @@ function formatArguments(args: readonly PositionalArg[]): string[] {
   for (const arg of args) {
     const argName = kleur.green(formatArgName(arg));
     let description = arg.description ?? "";
+    if (arg.allowStdin) {
+      description = description ? `${description} (use - for stdin)` : "use - for stdin";
+    }
     if (arg.choices && arg.choices.length > 0) {
       const choicesStr = arg.choices.join("|");
       description = description ? `${description} (${choicesStr})` : `(${choicesStr})`;

@@ -15,6 +15,17 @@ import {
   InvalidChoiceError,
 } from "../src/errors";
 
+function mockStdin(input: string): () => void {
+  const stdin = process.stdin as unknown as { [Symbol.asyncIterator]: unknown };
+  const original = stdin[Symbol.asyncIterator];
+  stdin[Symbol.asyncIterator] = async function* () {
+    yield input;
+  };
+  return () => {
+    stdin[Symbol.asyncIterator] = original;
+  };
+}
+
 describe("command aliases", () => {
   it("invokes subcommand by alias", () => {
     let called = false;
@@ -244,6 +255,98 @@ describe("command", () => {
       expect(() => cmd.run(["abc"])).toThrow(InvalidArgumentError);
     });
 
+    it("treats '-' as a literal string by default", () => {
+      let actual = "";
+
+      const cmd = command({
+        name: "my-cli",
+        args: [{ name: "str", type: "string" }],
+        handler: ([str]) => {
+          actual = str;
+        },
+      });
+
+      cmd.run(["-"]);
+
+      expect(actual).toBe("-");
+    });
+
+    it("reads stdin for string args that allow stdin", async () => {
+      const restore = mockStdin("hello world\n");
+      let actual = "";
+
+      try {
+        const cmd = command({
+          name: "my-cli",
+          args: [{ name: "str", type: "string", allowStdin: true }] as const,
+          handler: ([str]) => {
+            actual = str;
+          },
+        });
+
+        await cmd.run(["-"]);
+      } finally {
+        restore();
+      }
+
+      expect(actual).toBe("hello world\n");
+    });
+
+    it("does not read stdin for normal string values on args that allow stdin", () => {
+      let actual = "";
+
+      const cmd = command({
+        name: "my-cli",
+        args: [{ name: "str", type: "string", allowStdin: true }] as const,
+        handler: ([str]) => {
+          actual = str;
+        },
+      });
+
+      cmd.run(["hello world"]);
+
+      expect(actual).toBe("hello world");
+    });
+
+    it("validates stdin content after reading it", async () => {
+      const restore = mockStdin("valid");
+      let validatedValue = "";
+
+      try {
+        const cmd = command({
+          name: "my-cli",
+          args: [
+            {
+              name: "str",
+              type: "string",
+              allowStdin: true,
+              validate: (value) => {
+                validatedValue = value as string;
+                return value === "valid" || "Invalid stdin";
+              },
+            },
+          ] as const,
+          handler: () => {},
+        });
+
+        await cmd.run(["-"]);
+      } finally {
+        restore();
+      }
+
+      expect(validatedValue).toBe("valid");
+    });
+
+    it("rejects allowStdin on non-string args", () => {
+      expect(() =>
+        command({
+          name: "my-cli",
+          args: [{ name: "count", type: "number", allowStdin: true }] as const,
+          handler: () => {},
+        }),
+      ).toThrow("Argument 'count' can only allow stdin when type is 'string'");
+    });
+
     describe("variadic", () => {
       it("collects remaining args into an array", () => {
         let actual: string[] = [];
@@ -346,6 +449,27 @@ describe("command", () => {
         });
 
         expect(() => cmd.run(["1", "abc", "3"])).toThrow(InvalidArgumentError);
+      });
+
+      it("reads stdin for matching values in variadic string args", async () => {
+        const restore = mockStdin("from stdin");
+        let actual: string[] = [];
+
+        try {
+          const cmd = command({
+            name: "my-cli",
+            args: [{ name: "files", type: "string", variadic: true, allowStdin: true }] as const,
+            handler: ([files]) => {
+              actual = files;
+            },
+          });
+
+          await cmd.run(["a.txt", "-", "b.txt"]);
+        } finally {
+          restore();
+        }
+
+        expect(actual).toEqual(["a.txt", "from stdin", "b.txt"]);
       });
     });
 
@@ -517,6 +641,34 @@ describe("command", () => {
 
         expect(() => cmd.run(["pause"])).toThrow(InvalidChoiceError);
         expect(() => cmd.run(["pause"])).toThrow("Valid choices: start, stop, restart");
+      });
+
+      it("validates stdin content against choices", async () => {
+        const restore = mockStdin("start");
+        let receivedValue: string | undefined;
+
+        try {
+          const cmd = command({
+            name: "my-cli",
+            args: [
+              {
+                name: "action",
+                type: "string",
+                allowStdin: true,
+                choices: ["start", "stop"] as const,
+              },
+            ] as const,
+            handler: ([action]) => {
+              receivedValue = action;
+            },
+          });
+
+          await cmd.run(["-"]);
+        } finally {
+          restore();
+        }
+
+        expect(receivedValue).toBe("start");
       });
 
       it("validates each value in variadic args with choices", () => {
@@ -2101,6 +2253,32 @@ describe("subcommands", () => {
 
       expect(executed).toBeTrue();
       expect(receivedName).toBe("foo");
+    });
+
+    it("routes stdin args to a subcommand", async () => {
+      const restore = mockStdin("from stdin");
+      let receivedName = "";
+
+      try {
+        const add = command({
+          name: "add",
+          args: [{ name: "name", type: "string", allowStdin: true }] as const,
+          handler: ([name]) => {
+            receivedName = name;
+          },
+        });
+
+        const cli = command({
+          name: "cli",
+          subcommands: [add],
+        });
+
+        await cli.run(["add", "-"]);
+      } finally {
+        restore();
+      }
+
+      expect(receivedName).toBe("from stdin");
     });
 
     it("routes to a nested subcommand (2 levels)", () => {
