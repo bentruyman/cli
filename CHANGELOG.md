@@ -1,5 +1,11 @@
 # Changelog
 
+# [1.5.0](https://github.com/bentruyman/cli/compare/1.4.1...1.5.0) (2026-04-27)
+
+### Features
+
+- add stdin support for positional args ([3b2e27e](https://github.com/bentruyman/cli/commit/3b2e27e69e02ab9fa3da9449c2956d5133c95925))
+
 ## [1.4.1](https://github.com/bentruyman/cli/compare/1.4.0...1.4.1) (2026-04-10)
 
 ### Bug Fixes
