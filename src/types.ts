@@ -13,10 +13,12 @@ export type TypeMap = {
  *
  * @example
  * ```typescript
+ * import type { PositionalArg } from "@truyman/cli";
+ *
  * const args = [
  *   { name: "source", type: "string", description: "Source file" },
  *   { name: "dest", type: "string", description: "Destination", optional: true }
- * ] as const;
+ * ] as const satisfies readonly PositionalArg[];
  * ```
  */
 export type PositionalArg = {
@@ -57,11 +59,13 @@ export type PositionalArg = {
  *
  * @example
  * ```typescript
+ * import type { Options } from "@truyman/cli";
+ *
  * const options = {
  *   verbose: { type: "boolean", short: "v", description: "Enable verbose output" },
  *   port: { type: "number", default: 3000, description: "Port to listen on" },
  *   config: { type: "string", required: true, placeholder: "path" }
- * } as const;
+ * } as const satisfies Options;
  * ```
  */
 export type Option = {
@@ -145,7 +149,19 @@ export type Option = {
   validate?: (value: unknown) => true | string;
 };
 
-/** Record of option definitions keyed by option name */
+/**
+ * Record of option definitions keyed by option name.
+ *
+ * @example
+ * ```typescript
+ * import type { Options } from "@truyman/cli";
+ *
+ * const options = {
+ *   verbose: { type: "boolean", short: "v" },
+ *   output: { type: "string", short: "o", placeholder: "file" },
+ * } as const satisfies Options;
+ * ```
+ */
 export type Options = Record<string, Option>;
 
 /** Option with `long` guaranteed to be present (after normalization) */
@@ -160,6 +176,8 @@ export type NormalizedOptions = Record<string, NormalizedOption>;
  *
  * @example
  * ```typescript
+ * import type { CommandGroups } from "@truyman/cli";
+ *
  * const groups: CommandGroups = {
  *   'Project': ['init', 'build', 'test'],
  *   'Development': ['serve', 'watch'],
@@ -174,16 +192,33 @@ export type CommandGroups = Record<string, string[]>;
  *
  * @example
  * ```typescript
+ * import type { Example } from "@truyman/cli";
+ *
  * // Simple string
- * 'my-cli init myapp'
+ * const initExample: Example = 'my-cli init myapp';
  *
  * // With description
- * { command: 'my-cli deploy --env staging', description: 'Deploy to staging' }
+ * const deployExample: Example = {
+ *   command: 'my-cli deploy --env staging',
+ *   description: 'Deploy to staging',
+ * };
  * ```
  */
 export type Example = string | { command: string; description?: string };
 
-/** Array of examples shown in help output */
+/**
+ * Array of examples shown in help output.
+ *
+ * @example
+ * ```typescript
+ * import type { Examples } from "@truyman/cli";
+ *
+ * const examples: Examples = [
+ *   "notes add \"Ship it\"",
+ *   { command: "notes list --tag work", description: "Show work notes" },
+ * ];
+ * ```
+ */
 export type Examples = Example[];
 
 /** Converts positional arg definitions to a tuple of their runtime value types */
@@ -226,7 +261,19 @@ export type OptionsToValues<O extends Options> = {
                     : never;
 };
 
-/** Merges inherited and own options into a single type */
+/**
+ * Merges inherited and own option definitions into one handler option type.
+ *
+ * @example
+ * ```typescript
+ * import type { MergeOptions } from "@truyman/cli";
+ *
+ * type GlobalOptions = { verbose: { type: "boolean" } };
+ * type LocalOptions = { output: { type: "string"; required: true } };
+ *
+ * type CombinedOptions = MergeOptions<GlobalOptions, LocalOptions>;
+ * ```
+ */
 export type MergeOptions<I extends Options, O extends Options> = I & O;
 
 type BaseCommandOptions = {
@@ -236,7 +283,17 @@ type BaseCommandOptions = {
   description?: string;
   /** Version string shown when --version or -V is passed */
   version?: string;
-  /** Examples shown in help output, after description and before usage */
+  /**
+   * Examples shown in help output, after description and before usage.
+   *
+   * @example
+   * ```typescript
+   * examples: [
+   *   "deploy staging",
+   *   { command: "deploy production --force", description: "Skip confirmation" },
+   * ]
+   * ```
+   */
   examples?: Examples;
   /** If true, command is hidden from help output (e.g., for internal commands like completions) */
   hidden?: boolean;
@@ -257,6 +314,8 @@ type BaseCommandOptions = {
  *
  * @example
  * ```typescript
+ * import type { LeafCommandOptions } from "@truyman/cli";
+ *
  * const greet: LeafCommandOptions = {
  *   name: "greet",
  *   description: "Greet a user",
@@ -300,6 +359,15 @@ export type LeafCommandOptions<
 /**
  * Interface implemented by all commands.
  * Used for type-safe subcommand references.
+ *
+ * @example
+ * ```typescript
+ * import type { AnyCommand } from "@truyman/cli";
+ *
+ * function printHelp(cmd: AnyCommand) {
+ *   console.log(cmd.help());
+ * }
+ * ```
  */
 export interface AnyCommand {
   readonly name: string;
@@ -307,9 +375,23 @@ export interface AnyCommand {
   readonly hidden?: boolean;
   readonly aliases?: readonly string[];
   readonly options: NormalizedOptions;
-  /** Execute the command with the given arguments */
+  /**
+   * Execute the command with the given arguments.
+   *
+   * @example
+   * ```typescript
+   * await cmd.run(["build", "--watch"]);
+   * ```
+   */
   run(argv: string[], inheritedOptions?: Record<string, unknown>): void | Promise<void>;
-  /** Generate help text for this command */
+  /**
+   * Generate help text for this command.
+   *
+   * @example
+   * ```typescript
+   * console.log(cmd.help());
+   * ```
+   */
   help(): string;
 }
 
@@ -318,6 +400,8 @@ export interface AnyCommand {
  *
  * @example
  * ```typescript
+ * import type { ParentCommandOptions } from "@truyman/cli";
+ *
  * const git: ParentCommandOptions = {
  *   name: "git",
  *   description: "Version control system",
@@ -351,6 +435,8 @@ export type ParentCommandOptions<O extends Options = Options> = BaseCommandOptio
  *
  * @example
  * ```typescript
+ * import type { HybridCommandOptions } from "@truyman/cli";
+ *
  * const docker: HybridCommandOptions = {
  *   name: "docker",
  *   description: "Container management",
@@ -392,7 +478,21 @@ export type HybridCommandOptions<
   groups?: CommandGroups;
 };
 
-/** Union of leaf, parent, and hybrid command options */
+/**
+ * Union of leaf, parent, and hybrid command options.
+ *
+ * @example
+ * ```typescript
+ * import { command, type CommandOptions } from "@truyman/cli";
+ *
+ * const options = {
+ *   name: "hello",
+ *   handler: () => console.log("Hello"),
+ * } satisfies CommandOptions;
+ *
+ * const hello = command(options);
+ * ```
+ */
 export type CommandOptions<
   T extends readonly PositionalArg[] = readonly PositionalArg[],
   O extends Options = Options,

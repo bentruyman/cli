@@ -142,6 +142,8 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
  *
  * @example
  * ```typescript
+ * import { command, run } from "@truyman/cli";
+ *
  * const cli = command({
  *   name: "my-cli",
  *   version: "1.0.0",

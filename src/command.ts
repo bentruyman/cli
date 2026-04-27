@@ -105,6 +105,8 @@ async function readStdin(): Promise<string> {
  *
  * @example
  * ```typescript
+ * import { command } from "@truyman/cli";
+ *
  * const cmd = command({
  *   name: "greet",
  *   args: [{ name: "name", type: "string" }] as const,
@@ -272,19 +274,45 @@ export class Command<
     }
   }
 
-  /** Returns true if this command has subcommands (is a parent command or hybrid) */
+  /**
+   * Returns true if this command has subcommands (is a parent command or hybrid).
+   *
+   * @example
+   * ```typescript
+   * if (cli.isParent()) {
+   *   console.log(cli.getSubcommandNames());
+   * }
+   * ```
+   */
   isParent(): boolean {
     return this.subcommands !== undefined && this.subcommands.size > 0;
   }
 
-  /** Returns true if this command has both a handler and subcommands */
+  /**
+   * Returns true if this command has both a handler and subcommands.
+   *
+   * @example
+   * ```typescript
+   * if (cli.isHybrid()) {
+   *   console.log("Runs a default handler or a subcommand");
+   * }
+   * ```
+   */
   isHybrid(): boolean {
     return (
       this.subcommands !== undefined && this.subcommands.size > 0 && this.handler !== undefined
     );
   }
 
-  /** Get a subcommand by name or alias, or undefined if not found */
+  /**
+   * Get a subcommand by name or alias, or undefined if not found.
+   *
+   * @example
+   * ```typescript
+   * const add = cli.getSubcommand("add");
+   * await add?.run(["Buy milk"]);
+   * ```
+   */
   getSubcommand(name: string): AnyCommand | undefined {
     // First check primary names
     const cmd = this.subcommands?.get(name);
@@ -294,12 +322,28 @@ export class Command<
     return this.aliasMap?.get(name);
   }
 
-  /** Get an array of all subcommand names (primary names only) */
+  /**
+   * Get an array of all subcommand names (primary names only).
+   *
+   * @example
+   * ```typescript
+   * console.log(cli.getSubcommandNames());
+   * // ["add", "list", "remove"]
+   * ```
+   */
   getSubcommandNames(): string[] {
     return this.subcommands ? Array.from(this.subcommands.keys()) : [];
   }
 
-  /** Get an array of all subcommand names including aliases */
+  /**
+   * Get an array of all subcommand names including aliases.
+   *
+   * @example
+   * ```typescript
+   * console.log(cli.getAllSubcommandNames());
+   * // ["checkout", "co", "switch"]
+   * ```
+   */
   getAllSubcommandNames(): string[] {
     const names = this.getSubcommandNames();
     if (this.aliasMap) {
@@ -311,6 +355,11 @@ export class Command<
   /**
    * Generate formatted help text for this command.
    * @returns Colorized help string ready for display
+   *
+   * @example
+   * ```typescript
+   * process.stdout.write(cli.help() + "\n");
+   * ```
    */
   help(): string {
     if (this.isHybrid() && this.subcommands) {
@@ -352,6 +401,11 @@ export class Command<
    * @throws {InvalidOptionError} When an option has an invalid value
    * @throws {MissingSubcommandError} When no subcommand is provided to a parent
    * @throws {UnknownSubcommandError} When an unknown subcommand is provided
+   *
+   * @example
+   * ```typescript
+   * await cli.run(["deploy", "--env", "staging"]);
+   * ```
    */
   run(argv: string[], inheritedOptions: Record<string, unknown> = {}): void | Promise<void> {
     if (hasBuiltinHelpFlag(argv)) {
@@ -852,6 +906,8 @@ export class Command<
  *
  * @example Leaf command with args and options
  * ```typescript
+ * import { command } from "@truyman/cli";
+ *
  * const greet = command({
  *   name: "greet",
  *   description: "Greet someone",
@@ -867,6 +923,8 @@ export class Command<
  *
  * @example Parent command with subcommands
  * ```typescript
+ * import { command } from "@truyman/cli";
+ *
  * const cli = command({
  *   name: "my-cli",
  *   version: "1.0.0",
@@ -880,6 +938,8 @@ export class Command<
  *
  * @example Using inherited options
  * ```typescript
+ * import { command } from "@truyman/cli";
+ *
  * const GlobalOptions = {
  *   verbose: { type: "boolean", short: "v" }
  * } as const;

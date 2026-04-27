@@ -12,12 +12,29 @@ abstract class BaseError extends Error {
   }
 }
 
-/** Interface for error sources that can provide help text */
+/**
+ * Interface for error sources that can provide help text.
+ */
 export interface ErrorSource {
   help(): string;
 }
 
-/** Thrown when an option value is invalid (e.g., non-numeric value for number option) */
+/**
+ * Thrown when an option value is invalid (e.g., non-numeric value for number option).
+ *
+ * @example
+ * ```typescript
+ * import { InvalidOptionError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["--port", "abc"]);
+ * } catch (error) {
+ *   if (error instanceof InvalidOptionError) {
+ *     console.error(error.message);
+ *   }
+ * }
+ * ```
+ */
 export class InvalidOptionError extends BaseError {
   readonly code = "INVALID_OPTION";
   /** The command where the error occurred, used for displaying help */
@@ -29,7 +46,22 @@ export class InvalidOptionError extends BaseError {
   }
 }
 
-/** Thrown when a required option is not provided */
+/**
+ * Thrown when a required option is not provided.
+ *
+ * @example
+ * ```typescript
+ * import { MissingOptionError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run([]);
+ * } catch (error) {
+ *   if (error instanceof MissingOptionError) {
+ *     console.error(error.message);
+ *   }
+ * }
+ * ```
+ */
 export class MissingOptionError extends BaseError {
   readonly code = "MISSING_OPTION";
   /** The command where the error occurred, used for displaying help */
@@ -41,7 +73,22 @@ export class MissingOptionError extends BaseError {
   }
 }
 
-/** Thrown when a required positional argument is not provided */
+/**
+ * Thrown when a required positional argument is not provided.
+ *
+ * @example
+ * ```typescript
+ * import { MissingArgumentError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run([]);
+ * } catch (error) {
+ *   if (error instanceof MissingArgumentError) {
+ *     console.error(error.message);
+ *   }
+ * }
+ * ```
+ */
 export class MissingArgumentError extends BaseError {
   readonly code = "MISSING_ARGUMENT";
   /** The command where the error occurred, used for displaying help */
@@ -53,7 +100,22 @@ export class MissingArgumentError extends BaseError {
   }
 }
 
-/** Thrown when a positional argument value is invalid (e.g., non-numeric value for number arg) */
+/**
+ * Thrown when a positional argument value is invalid (e.g., non-numeric value for number arg).
+ *
+ * @example
+ * ```typescript
+ * import { InvalidArgumentError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["not-a-number"]);
+ * } catch (error) {
+ *   if (error instanceof InvalidArgumentError) {
+ *     console.error(error.message);
+ *   }
+ * }
+ * ```
+ */
 export class InvalidArgumentError extends BaseError {
   readonly code = "INVALID_ARGUMENT";
   /** The command where the error occurred, used for displaying help */
@@ -65,7 +127,22 @@ export class InvalidArgumentError extends BaseError {
   }
 }
 
-/** Thrown when a parent command is invoked without a subcommand */
+/**
+ * Thrown when a parent command is invoked without a subcommand.
+ *
+ * @example
+ * ```typescript
+ * import { MissingSubcommandError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run([]);
+ * } catch (error) {
+ *   if (error instanceof MissingSubcommandError) {
+ *     console.error(error.availableSubcommands);
+ *   }
+ * }
+ * ```
+ */
 export class MissingSubcommandError extends BaseError {
   readonly code = "MISSING_SUBCOMMAND";
   /** List of valid subcommand names */
@@ -81,7 +158,22 @@ export class MissingSubcommandError extends BaseError {
   }
 }
 
-/** Thrown when an unknown subcommand is provided */
+/**
+ * Thrown when an unknown subcommand is provided.
+ *
+ * @example
+ * ```typescript
+ * import { UnknownSubcommandError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["lst"]);
+ * } catch (error) {
+ *   if (error instanceof UnknownSubcommandError) {
+ *     console.error(error.suggestions);
+ *   }
+ * }
+ * ```
+ */
 export class UnknownSubcommandError extends BaseError {
   readonly code = "UNKNOWN_SUBCOMMAND";
   /** List of valid subcommand names */
@@ -111,7 +203,22 @@ export class UnknownSubcommandError extends BaseError {
   }
 }
 
-/** Thrown when an unknown option/flag is provided */
+/**
+ * Thrown when an unknown option/flag is provided.
+ *
+ * @example
+ * ```typescript
+ * import { UnknownOptionError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["--verbsoe"]);
+ * } catch (error) {
+ *   if (error instanceof UnknownOptionError) {
+ *     console.error(error.suggestions);
+ *   }
+ * }
+ * ```
+ */
 export class UnknownOptionError extends BaseError {
   readonly code = "UNKNOWN_OPTION";
   /** The unknown option that was provided */
@@ -152,7 +259,22 @@ export class ReservedOptionError extends BaseError {
   }
 }
 
-/** Thrown when a custom validation function returns an error */
+/**
+ * Thrown when a custom validation function returns an error.
+ *
+ * @example
+ * ```typescript
+ * import { ValidationError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["--port", "0"]);
+ * } catch (error) {
+ *   if (error instanceof ValidationError) {
+ *     console.error(error.message);
+ *   }
+ * }
+ * ```
+ */
 export class ValidationError extends BaseError {
   readonly code = "VALIDATION_ERROR";
   /** The command where the error occurred, used for displaying help */
@@ -164,7 +286,22 @@ export class ValidationError extends BaseError {
   }
 }
 
-/** Thrown when a value is not one of the allowed choices */
+/**
+ * Thrown when a value is not one of the allowed choices.
+ *
+ * @example
+ * ```typescript
+ * import { InvalidChoiceError } from "@truyman/cli";
+ *
+ * try {
+ *   await cli.run(["--format", "xml"]);
+ * } catch (error) {
+ *   if (error instanceof InvalidChoiceError) {
+ *     console.error(error.choices);
+ *   }
+ * }
+ * ```
+ */
 export class InvalidChoiceError extends BaseError {
   readonly code = "INVALID_CHOICE";
   /** The value that was provided */
