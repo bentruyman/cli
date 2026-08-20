@@ -2341,6 +2341,107 @@ describe("subcommands", () => {
     });
   });
 
+  describe("option values reach subcommands verbatim", () => {
+    // A parent only declares its own options to mri, so every option belonging
+    // to a subcommand went through mri's numeric coercion on the way past.
+    // Rebuilding argv from the parsed values then wrote that coercion back in,
+    // and the subcommand had no way to know the value had ever been anything
+    // else. A flat command was unaffected, which is what made this hard to see.
+    function captureTitle(argv: string[]): string | undefined {
+      let received: string | undefined;
+
+      const sub = command({
+        name: "update",
+        options: { title: { type: "string", long: "title" } },
+        handler: (_args, options) => {
+          received = options.title;
+        },
+      });
+
+      const cli = command({
+        name: "cli",
+        subcommands: [command({ name: "chore", subcommands: [sub] })],
+      });
+
+      cli.run(argv);
+
+      return received;
+    }
+
+    it("preserves an empty string rather than coercing it to zero", () => {
+      expect(captureTitle(["chore", "update", "--title", ""])).toBe("");
+    });
+
+    it("preserves numeric-looking strings exactly as typed", () => {
+      // These used to arrive as Number(value): "7", "1000", "16", "1.5", "5".
+      expect(captureTitle(["chore", "update", "--title", "007"])).toBe("007");
+      expect(captureTitle(["chore", "update", "--title", "1e3"])).toBe("1e3");
+      expect(captureTitle(["chore", "update", "--title", "0x10"])).toBe("0x10");
+      expect(captureTitle(["chore", "update", "--title", "1.50"])).toBe("1.50");
+      expect(captureTitle(["chore", "update", "--title", "+5"])).toBe("+5");
+    });
+
+    it("agrees with the flat command that always got this right", () => {
+      let flatReceived: string | undefined;
+
+      const flat = command({
+        name: "cli",
+        options: { title: { type: "string", long: "title" } },
+        handler: (_args, options) => {
+          flatReceived = options.title;
+        },
+      });
+
+      flat.run(["--title", "007"]);
+
+      expect(flatReceived).toBe(captureTitle(["chore", "update", "--title", "007"]));
+    });
+
+    it("still strips the parent's own options and passes them as inherited", () => {
+      let received: { title?: string; apiUrl?: string } = {};
+
+      const sub = command({
+        name: "update",
+        options: { title: { type: "string", long: "title" } },
+        handler: (_args, options) => {
+          received = options as { title?: string; apiUrl?: string };
+        },
+      });
+
+      const cli = command({
+        name: "cli",
+        options: { apiUrl: { type: "string", long: "api-url" } },
+        subcommands: [sub],
+      });
+
+      cli.run(["--api-url", "http://example", "update", "--title", ""]);
+
+      expect(received.title).toBe("");
+    });
+
+    it("passes boolean flags and `--opt=value` through unchanged", () => {
+      let received: { title?: string; verbose?: boolean } = {};
+
+      const sub = command({
+        name: "update",
+        options: {
+          title: { type: "string", long: "title" },
+          verbose: { type: "boolean", long: "verbose" },
+        },
+        handler: (_args, options) => {
+          received = options as { title?: string; verbose?: boolean };
+        },
+      });
+
+      const cli = command({ name: "cli", subcommands: [sub] });
+
+      cli.run(["update", "--title=", "--verbose"]);
+
+      expect(received.title).toBe("");
+      expect(received.verbose).toBe(true);
+    });
+  });
+
   describe("errors", () => {
     it("throws MissingSubcommandError when no subcommand provided", () => {
       const add = command({

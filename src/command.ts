@@ -23,6 +23,7 @@ import type {
   HybridCommandOptions,
   LeafCommandOptions,
   MergeOptions,
+  NormalizedOption,
   NormalizedOptions,
   Options,
   OptionsToValues,
@@ -448,7 +449,7 @@ export class Command<
       throw new UnknownSubcommandError(subcommandName, available, suggestions, this);
     }
 
-    const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
+    const remainingArgv = this.argvForSubcommand(argv, subcommandName);
     return subcommand.run(remainingArgv, mergedInherited);
   }
 
@@ -469,7 +470,7 @@ export class Command<
           Object.entries(parentOpts).filter(([, v]) => v !== undefined),
         );
         const mergedInherited = { ...inheritedOptions, ...definedParentOpts };
-        const remainingArgv = this.reconstructArgv(parsed._.slice(1), parsed);
+        const remainingArgv = this.argvForSubcommand(argv, firstPositional);
         return subcommand.run(remainingArgv, mergedInherited);
       }
 
@@ -558,35 +559,83 @@ export class Command<
   }
 
   /**
-   * Reconstructs an argv array for passing to subcommands.
+   * Selects the argv a subcommand should parse: the original tokens, minus this
+   * command's own options and the subcommand name.
    *
-   * When a parent command parses argv, mri consumes the options. To pass inherited
-   * options to subcommands, we must reconstruct them from the parsed result.
-   * Only options NOT defined on this command are passed through (inherited options).
+   * The tokens are passed through untouched rather than rebuilt from the parsed
+   * result. A parent only tells mri about the options *it* declares, so mri
+   * applies its numeric coercion to every option belonging to a subcommand:
+   * `--title ""` parses as the number 0, `--title 007` as 7, `--title 1e3` as
+   * 1000. Rebuilding argv from those values then stringified the damage back
+   * into place, and the subcommand received `--title 0` with no way to know it
+   * had ever been anything else. The coercion is not reversible, so the fix is
+   * not to serialize through it: only the subcommand knows the type of its own
+   * options, so it should see exactly what the user typed.
    *
-   * @param positionals - Remaining positional arguments after the subcommand name
-   * @param parsed - The parsed mri result containing all options
-   * @returns Reconstructed argv with positionals and inherited options
+   * Options this command declares are removed because they are handed to the
+   * subcommand through `inheritedOptions` instead.
+   *
+   * @param argv - The original argv this command received
+   * @param subcommandName - The positional naming the subcommand, removed once
+   * @returns The remaining tokens, in their original form
    */
-  private reconstructArgv(positionals: string[], parsed: mri.Argv): string[] {
-    const result = [...positionals];
+  private argvForSubcommand(argv: string[], subcommandName: string): string[] {
+    const result: string[] = [];
+    let subcommandRemoved = false;
 
-    for (const [key, value] of Object.entries(parsed)) {
-      if (key === "_") continue;
+    for (let index = 0; index < argv.length; index++) {
+      const token = argv[index];
+      if (token === undefined) continue;
 
-      const isOwnOption = Object.values(this.options).some(
-        (opt) => opt.long === key || opt.short === key,
-      );
-      if (isOwnOption) continue;
-
-      if (typeof value === "boolean" && value) {
-        result.push(`--${key}`);
-      } else if (value !== undefined && value !== false) {
-        result.push(`--${key}`, String(value));
+      // Everything after `--` is verbatim by definition.
+      if (token === "--") {
+        result.push(...argv.slice(index));
+        break;
       }
+
+      const owned = this.ownOptionForToken(token);
+
+      if (owned) {
+        // `--opt=value` carries its value; `--opt value` consumes the next
+        // token, but only when the option actually takes one.
+        if (owned.type !== "boolean" && !token.includes("=")) {
+          index++;
+        }
+
+        continue;
+      }
+
+      if (!subcommandRemoved && token === subcommandName) {
+        subcommandRemoved = true;
+        continue;
+      }
+
+      result.push(token);
     }
 
     return result;
+  }
+
+  /**
+   * The option this command declares that `token` refers to, or undefined.
+   *
+   * Only exact matches count. A clustered short group like `-abc` is passed
+   * through to the subcommand rather than guessed at, which is the safer
+   * failure: the subcommand reports an unknown option instead of this command
+   * silently swallowing a flag and the value after it.
+   */
+  private ownOptionForToken(token: string): NormalizedOption | undefined {
+    if (!token.startsWith("-") || token === "-") return undefined;
+
+    const name = (token.startsWith("--") ? token.slice(2) : token.slice(1)).split("=")[0];
+    if (!name) return undefined;
+
+    return Object.values(this.options).find(
+      (opt) =>
+        opt.long === name ||
+        opt.short === name ||
+        (opt.type === "boolean" && opt.negatable && `no-${opt.long}` === name),
+    );
   }
 
   private extractArgs(parsed: mri.Argv): ArgsToValues<T> {
