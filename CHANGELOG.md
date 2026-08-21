@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1](https://github.com/bentruyman/cli/compare/1.5.0...1.5.1) (2026-08-21)
+
+### Bug Fixes
+
+- pass option values to subcommands verbatim ([ecb8814](https://github.com/bentruyman/cli/commit/ecb8814ade1bd66478f521f1b777f45edcb1133d))
+
 # [1.5.0](https://github.com/bentruyman/cli/compare/1.4.1...1.5.0) (2026-04-27)
 
 ### Features
