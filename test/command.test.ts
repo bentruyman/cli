@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 
 import { command } from "../src/command";
 import { run } from "../src/index";
@@ -25,6 +25,10 @@ function mockStdin(input: string): () => void {
     stdin[Symbol.asyncIterator] = original;
   };
 }
+
+afterEach(() => {
+  process.exitCode = 0;
+});
 
 describe("command aliases", () => {
   it("invokes subcommand by alias", () => {
@@ -715,7 +719,7 @@ describe("command", () => {
 
   describe("options", () => {
     it("parses 'boolean' options", () => {
-      let value = false;
+      let value: boolean | undefined = false;
 
       const cmd = command({
         name: "my-cli",
@@ -1003,7 +1007,7 @@ describe("command", () => {
     });
 
     it("inferred long works with boolean type", () => {
-      let value = false;
+      let value: boolean | undefined = false;
 
       const cmd = command({
         name: "my-cli",
@@ -1153,7 +1157,7 @@ describe("command", () => {
     });
 
     it("uses default value for boolean options", () => {
-      let value = false;
+      let value: boolean | undefined = false;
 
       const cmd = command({
         name: "my-cli",
@@ -1869,7 +1873,7 @@ describe("command", () => {
   describe("full", () => {
     it("runs a command with args and options", () => {
       let pathArg = "";
-      let fooOpt = false;
+      let fooOpt: boolean | undefined = false;
       let barOpt: number | undefined;
       let quxxOpt: string | undefined;
 
@@ -1886,7 +1890,7 @@ describe("command", () => {
         options: {
           foo: { type: "boolean", long: "foo" },
           bar: { type: "number", long: "bar", short: "b" },
-          baz: { type: "number", long: "bar", short: "z" },
+          baz: { type: "number", long: "baz", short: "z" },
           quxx: { type: "string", long: "quxx", short: "x" },
         },
         handler: (args, { foo, bar, quxx }) => {
@@ -2589,8 +2593,8 @@ describe("subcommands", () => {
 
   describe("inherited options", () => {
     it("passes parent options to child handler", () => {
-      let receivedVerbose = false;
-      let receivedForce = false;
+      let receivedVerbose: boolean | undefined = false;
+      let receivedForce: boolean | undefined = false;
 
       const GlobalOptions = {
         verbose: { type: "boolean", long: "verbose", short: "v" },
@@ -2621,7 +2625,7 @@ describe("subcommands", () => {
     });
 
     it("handles multi-level inheritance", () => {
-      let receivedDebug = false;
+      let receivedDebug: boolean | undefined = false;
       let receivedService: string | undefined;
       let receivedTail: number | undefined;
 
@@ -2684,7 +2688,7 @@ describe("subcommands", () => {
     });
 
     it("works without inherits (backward compatible)", () => {
-      let receivedFlag = false;
+      let receivedFlag: boolean | undefined = false;
 
       const cmd = command({
         name: "standalone",
@@ -2727,8 +2731,8 @@ describe("subcommands", () => {
     });
 
     it("supports flags before subcommand name", () => {
-      let receivedVerbose = false;
-      let receivedForce = false;
+      let receivedVerbose: boolean | undefined = false;
+      let receivedForce: boolean | undefined = false;
 
       const GlobalOptions = {
         verbose: { type: "boolean", long: "verbose", short: "v" },
@@ -2766,10 +2770,10 @@ describe("subcommands", () => {
         name: { type: "string", long: "name" },
       } as const;
 
-      let capturedVerbose: boolean = false;
+      let capturedVerbose: boolean | undefined = false;
       let capturedCount: number | undefined;
       let capturedName: string | undefined;
-      let capturedOwn: boolean = false;
+      let capturedOwn: boolean | undefined = false;
 
       const child = command({
         name: "child",
@@ -2942,7 +2946,7 @@ describe("subcommands", () => {
       });
 
       it("recognizes negatable boolean flags as valid", () => {
-        let receivedColor = true;
+        let receivedColor: boolean | undefined = true;
 
         const cmd = command({
           name: "test",
@@ -3171,7 +3175,7 @@ describe("hybrid commands", () => {
   describe("args and options", () => {
     it("handler receives typed args and options", () => {
       let receivedName: string | undefined;
-      let receivedVerbose = false;
+      let receivedVerbose: boolean | undefined = false;
 
       const sub = command({
         name: "sub",
@@ -3198,7 +3202,7 @@ describe("hybrid commands", () => {
     });
 
     it("subcommands receive inherited options", () => {
-      let receivedVerbose = false;
+      let receivedVerbose: boolean | undefined = false;
 
       const GlobalOptions = {
         verbose: { type: "boolean" },

@@ -1,4 +1,4 @@
-import mri from "mri";
+import { parseArgv, type ParsedArgv } from "./parse";
 
 import {
   MissingArgumentError,
@@ -7,7 +7,6 @@ import {
   MissingOptionError,
   MissingSubcommandError,
   UnknownSubcommandError,
-  UnknownOptionError,
   ReservedOptionError,
   ValidationError,
   InvalidChoiceError,
@@ -23,43 +22,13 @@ import type {
   HybridCommandOptions,
   LeafCommandOptions,
   MergeOptions,
-  NormalizedOption,
   NormalizedOptions,
   Options,
+  Option,
   OptionsToValues,
   ParentCommandOptions,
   PositionalArg,
 } from "./types";
-
-const STDIN_POSITIONAL_SENTINEL = "\u0000@truyman/cli-stdin\u0000";
-
-function hasBuiltinHelpFlag(argv: string[]): boolean {
-  for (const arg of argv) {
-    if (arg === "--") return false;
-    if (arg === "--help" || arg === "-h") return true;
-  }
-  return false;
-}
-
-function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
-  if (!(cmd instanceof Command) || !cmd.isParent()) {
-    return cmd;
-  }
-
-  for (const [index, arg] of argv.entries()) {
-    if (arg === "--") break;
-    if (arg === "--help" || arg === "-h") continue;
-    if (arg.startsWith("-")) continue;
-
-    const subCmd = cmd.getSubcommand(arg);
-    if (subCmd) {
-      return findHelpTarget(subCmd, argv.slice(index + 1));
-    }
-    break;
-  }
-
-  return cmd;
-}
 
 function isHybridOptions<T extends readonly PositionalArg[], O extends Options, I extends Options>(
   opts: CommandOptions<T, O, I>,
@@ -82,10 +51,17 @@ function isParentOptions<T extends readonly PositionalArg[], O extends Options, 
   );
 }
 
-function normalizeOptions(options: Options): NormalizedOptions {
-  const normalized: NormalizedOptions = {};
+export function normalizeOptions(
+  options: Options,
+  parent: NormalizedOptions = {},
+): NormalizedOptions {
+  const normalized: NormalizedOptions = Object.assign(Object.create(null), parent);
   for (const [key, opt] of Object.entries(options)) {
-    normalized[key] = { ...opt, long: opt.long ?? key };
+    normalized[key] = {
+      ...parent[key],
+      ...opt,
+      long: opt.long ?? key,
+    } as NormalizedOptions[string];
   }
   return normalized;
 }
@@ -140,7 +116,10 @@ export class Command<
   /** Inherited option definitions from parent commands */
   readonly inherits: NormalizedOptions;
   /** Handler function for leaf commands */
-  readonly handler?: (args: ArgsToValues<T>, options: OptionsToValues<MergeOptions<I, O>>) => void;
+  readonly handler?: (
+    args: ArgsToValues<T>,
+    options: OptionsToValues<MergeOptions<I, O>>,
+  ) => void | Promise<void>;
   /** Map of subcommands for parent commands (by name) */
   readonly subcommands?: Map<string, AnyCommand>;
   /** Map of alias to subcommand for fast lookup */
@@ -151,6 +130,18 @@ export class Command<
   readonly examples?: Examples;
 
   constructor(cmdOptions: CommandOptions<T, O, I>) {
+    for (const name of [cmdOptions.name, ...(cmdOptions.aliases ?? [])]) {
+      if (!/^[\w][\w.-]*$/.test(name)) throw new Error(`Invalid command name: ${name}`);
+    }
+    if ("subcommands" in cmdOptions && cmdOptions.subcommands) {
+      const names = new Set<string>();
+      for (const child of cmdOptions.subcommands) {
+        for (const name of [child.name, ...(child.aliases ?? [])]) {
+          if (names.has(name)) throw new Error(`Duplicate command name or alias: ${name}`);
+          names.add(name);
+        }
+      }
+    }
     this.name = cmdOptions.name;
     this.description = cmdOptions.description;
     this.version = cmdOptions.version;
@@ -218,6 +209,61 @@ export class Command<
     }
 
     this.validateReservedOptions(this.options);
+    this.validateTreeOptions({});
+  }
+
+  private validateTreeOptions(parent: NormalizedOptions): void {
+    const local = { ...this.inherits, ...this.options };
+    for (const [key, opt] of Object.entries(local)) {
+      const ancestor = Object.hasOwn(parent, key) ? parent[key] : undefined;
+      if (
+        ancestor &&
+        (ancestor.type !== opt.type ||
+          ancestor.long !== opt.long ||
+          ancestor.short !== opt.short ||
+          !!ancestor.multiple !== !!opt.multiple ||
+          !!ancestor.negatable !== !!opt.negatable)
+      ) {
+        throw new Error(`Conflicting inherited option definition: ${key}`);
+      }
+    }
+    const definitions = normalizeOptions(local, parent);
+    this.validateOptionNames(definitions);
+    for (const child of this.subcommands?.values() ?? []) {
+      if (child instanceof Command) child.validateTreeOptions(definitions);
+    }
+  }
+
+  private validateOptionNames(definitions: NormalizedOptions): void {
+    const longs = new Set<string>();
+    const shorts = new Set<string>();
+    for (const opt of Object.values(definitions)) {
+      if (!/^[\w][\w.-]*$/.test(opt.long)) throw new Error(`Invalid option name: ${opt.long}`);
+      for (const name of [opt.long, ...(opt.negatable ? [`no-${opt.long}`] : [])]) {
+        if (longs.has(name)) throw new Error(`Duplicate option: --${name}`);
+        longs.add(name);
+      }
+      if (opt.short) {
+        if (!/^[a-zA-Z0-9]$/.test(opt.short)) throw new Error(`Invalid short option: ${opt.short}`);
+        if (shorts.has(opt.short)) throw new Error(`Duplicate option: -${opt.short}`);
+        shorts.add(opt.short);
+      }
+      if (opt.negatable && opt.type !== "boolean")
+        throw new Error("Only boolean options can be negatable");
+      const defaults =
+        opt.default === undefined ? [] : Array.isArray(opt.default) ? opt.default : [opt.default];
+      if (Array.isArray(opt.default) && !opt.multiple)
+        throw new Error(`Only multiple options can have array defaults: ${opt.long}`);
+      for (const value of [...(opt.choices ?? []), ...defaults]) {
+        if (typeof value !== opt.type || (typeof value === "number" && !Number.isFinite(value))) {
+          throw new Error(`Invalid default or choice type for --${opt.long}`);
+        }
+      }
+      for (const value of defaults) {
+        if (opt.choices && !opt.choices.includes(value as never))
+          throw new Error(`Default is not a choice for --${opt.long}`);
+      }
+    }
   }
 
   private validateArgs(): void {
@@ -362,14 +408,20 @@ export class Command<
    * process.stdout.write(cli.help() + "\n");
    * ```
    */
-  help(): string {
+  help(path = this.name, parentOptions: NormalizedOptions = {}): string {
+    const inherits = normalizeOptions({ ...this.inherits, ...this.options }, parentOptions);
+    const options: NormalizedOptions = {};
+    for (const key of Object.keys(this.options)) {
+      options[key] = inherits[key]!;
+      delete inherits[key];
+    }
     if (this.isHybrid() && this.subcommands) {
       return formatHybridHelp({
-        name: this.name,
+        name: path,
         description: this.description,
         args: this.args,
-        options: this.options,
-        inherits: this.inherits,
+        options,
+        inherits,
         subcommands: this.subcommands,
         groups: this.groups,
         examples: this.examples,
@@ -377,15 +429,15 @@ export class Command<
     }
     if (this.isParent() && this.subcommands) {
       return formatParentHelp({
-        name: this.name,
+        name: path,
         description: this.description,
-        options: this.options,
+        options: { ...inherits, ...options },
         subcommands: this.subcommands,
         groups: this.groups,
         examples: this.examples,
       });
     }
-    return formatHelp({ ...this, examples: this.examples });
+    return formatHelp({ ...this, name: path, options, inherits, examples: this.examples });
   }
 
   /**
@@ -409,123 +461,89 @@ export class Command<
    * ```
    */
   run(argv: string[], inheritedOptions: Record<string, unknown> = {}): void | Promise<void> {
-    if (hasBuiltinHelpFlag(argv)) {
-      process.stdout.write(findHelpTarget(this, argv).help() + "\n");
+    return this.execute(argv, {}, inheritedOptions, this.name, this.version);
+  }
+
+  private execute(
+    argv: string[],
+    parentDefs: NormalizedOptions,
+    inheritedOptions: Record<string, unknown>,
+    path: string,
+    version?: string,
+    scopes: NormalizedOptions[] = [],
+  ): void | Promise<void> {
+    const source = { help: () => this.help(path, parentDefs) };
+    const definitions = normalizeOptions({ ...this.inherits, ...this.options }, parentDefs);
+    const parsed = parseArgv(argv, definitions, source, this.isParent());
+    if (parsed.commandIndex !== undefined) {
+      const index = parsed.commandIndex;
+      const name = argv[index]!;
+      const child = this.getSubcommand(name);
+      if (child) {
+        const remaining = [...argv.slice(0, index), ...argv.slice(index + 1)];
+        if (child instanceof Command) {
+          return child.execute(
+            remaining,
+            definitions,
+            inheritedOptions,
+            `${path} ${child.name}`,
+            child.version ?? version,
+            [...scopes, definitions],
+          );
+        }
+        return child.run(
+          argv.slice(index + 1),
+          this.extractOptionsFromDefs(parsed, definitions, inheritedOptions),
+        );
+      }
+      if (!this.handler || this.args.length === 0) {
+        if (!parsed.help && !parsed.version) {
+          throw new UnknownSubcommandError(
+            name,
+            this.getSubcommandNames(),
+            findSuggestions(name, this.getAllSubcommandNames()),
+            source,
+          );
+        }
+      }
+    }
+    const leaf = this.handler && this.isParent() ? parseArgv(argv, definitions, source) : parsed;
+    if (leaf.help) {
+      process.stdout.write(source.help() + "\n");
       return;
     }
-
-    if (this.isHybrid()) {
-      return this.runHybrid(argv, inheritedOptions);
-    } else if (this.isParent()) {
-      return this.runParent(argv, inheritedOptions);
-    } else {
-      return this.runLeaf(argv, inheritedOptions);
+    if (leaf.version) {
+      if (!version) throw new InvalidOptionError(`${this.name}: no version specified`, source);
+      process.stdout.write(version + "\n");
+      return;
     }
-  }
-
-  private runParent(
-    argv: string[],
-    inheritedOptions: Record<string, unknown>,
-  ): void | Promise<void> {
-    const parsed = this.parseArgvWithOptions(argv, this.options);
-    const parentOpts = this.extractOptions(parsed);
-
-    const definedParentOpts = Object.fromEntries(
-      Object.entries(parentOpts).filter(([, v]) => v !== undefined),
-    );
-    const mergedInherited = { ...inheritedOptions, ...definedParentOpts };
-
-    const subcommandName = parsed._[0];
-
-    if (!subcommandName || subcommandName.startsWith("-")) {
-      throw new MissingSubcommandError(this.name, this.getSubcommandNames(), this);
-    }
-
-    const subcommand = this.getSubcommand(subcommandName);
-    if (!subcommand) {
-      const available = this.getSubcommandNames();
-      const allNames = this.getAllSubcommandNames();
-      const suggestions = findSuggestions(subcommandName, allNames);
-      throw new UnknownSubcommandError(subcommandName, available, suggestions, this);
-    }
-
-    const remainingArgv = this.argvForSubcommand(argv, subcommandName);
-    return subcommand.run(remainingArgv, mergedInherited);
-  }
-
-  private runHybrid(
-    argv: string[],
-    inheritedOptions: Record<string, unknown>,
-  ): void | Promise<void> {
-    // Parse without throwOnUnknown to check if first positional is a subcommand
-    const parsed = this.parseArgvWithOptions(argv, this.options);
-    const firstPositional = parsed._[0];
-
-    if (firstPositional && !firstPositional.startsWith("-")) {
-      const subcommand = this.getSubcommand(firstPositional);
-      if (subcommand) {
-        // Dispatch to subcommand like a parent
-        const parentOpts = this.extractOptions(parsed);
-        const definedParentOpts = Object.fromEntries(
-          Object.entries(parentOpts).filter(([, v]) => v !== undefined),
-        );
-        const mergedInherited = { ...inheritedOptions, ...definedParentOpts };
-        const remainingArgv = this.argvForSubcommand(argv, firstPositional);
-        return subcommand.run(remainingArgv, mergedInherited);
-      }
-
-      // No subcommand match and no positional args to consume it — unknown subcommand
-      if (this.args.length === 0) {
-        const available = this.getSubcommandNames();
-        const allNames = this.getAllSubcommandNames();
-        const suggestions = findSuggestions(firstPositional, allNames);
-        throw new UnknownSubcommandError(firstPositional, available, suggestions, this);
-      }
-    }
-
-    // No subcommand match — fall through to leaf handler
-    return this.runLeaf(argv, inheritedOptions);
-  }
-
-  private runLeaf(argv: string[], inheritedOptions: Record<string, unknown>): void | Promise<void> {
-    const mergedOptionDefs = { ...this.inherits, ...this.options };
-    const parsed = this.parseArgvWithOptions(argv, mergedOptionDefs, true);
-    const resolved = this.resolveStdinArgs(parsed);
-
-    if (resolved instanceof Promise) {
-      return resolved.then((resolvedParsed) =>
-        this.runLeafWithParsedArgs(resolvedParsed, inheritedOptions),
-      );
-    }
-
-    return this.runLeafWithParsedArgs(resolved, inheritedOptions);
-  }
-
-  private runLeafWithParsedArgs(
-    parsed: mri.Argv,
-    inheritedOptions: Record<string, unknown>,
-  ): void | Promise<void> {
-    const args = this.extractArgs(parsed);
-    const ownOptions = this.extractOptionsFromDefs(parsed, this.options);
-    const inheritedFromArgv = this.extractOptionsFromDefs(parsed, this.inherits);
-
-    const options = {
-      ...inheritedFromArgv,
-      ...inheritedOptions,
-      ...ownOptions,
-    };
-
     if (!this.handler) {
-      throw new Error(`Command '${this.name}' has no handler`);
+      throw new MissingSubcommandError(this.name, this.getSubcommandNames(), source);
     }
-
-    return this.handler(args, options as OptionsToValues<MergeOptions<I, O>>);
+    const invoke = (resolved: ParsedArgv): void | Promise<void> => {
+      try {
+        const args = this.extractArgs(resolved);
+        const options = this.extractOptionsFromDefs(
+          resolved,
+          definitions,
+          inheritedOptions,
+          scopes,
+        );
+        return this.handler!(args, options as OptionsToValues<MergeOptions<I, O>>);
+      } catch (error) {
+        if (error instanceof Error && "source" in error && error.source === this)
+          error.source = source;
+        throw error;
+      }
+    };
+    const resolved = this.resolveStdinArgs(leaf);
+    return resolved instanceof Promise ? resolved.then(invoke) : invoke(resolved);
   }
 
-  private resolveStdinArgs(parsed: mri.Argv): mri.Argv | Promise<mri.Argv> {
+  private resolveStdinArgs(parsed: ParsedArgv): ParsedArgv | Promise<ParsedArgv> {
     let stdin: Promise<string> | undefined;
     const replacements: Promise<void>[] = [];
-    const positionals = [...parsed._];
+    const positionals = [...parsed.positionals];
 
     for (let i = 0; i < this.args.length; i++) {
       const arg = this.args[i];
@@ -555,90 +573,10 @@ export class Command<
       return parsed;
     }
 
-    return Promise.all(replacements).then(() => ({ ...parsed, _: positionals }));
+    return Promise.all(replacements).then(() => ({ ...parsed, positionals }));
   }
 
-  /**
-   * Selects the argv a subcommand should parse: the original tokens, minus this
-   * command's own options and the subcommand name.
-   *
-   * The tokens are passed through untouched rather than rebuilt from the parsed
-   * result. A parent only tells mri about the options *it* declares, so mri
-   * applies its numeric coercion to every option belonging to a subcommand:
-   * `--title ""` parses as the number 0, `--title 007` as 7, `--title 1e3` as
-   * 1000. Rebuilding argv from those values then stringified the damage back
-   * into place, and the subcommand received `--title 0` with no way to know it
-   * had ever been anything else. The coercion is not reversible, so the fix is
-   * not to serialize through it: only the subcommand knows the type of its own
-   * options, so it should see exactly what the user typed.
-   *
-   * Options this command declares are removed because they are handed to the
-   * subcommand through `inheritedOptions` instead.
-   *
-   * @param argv - The original argv this command received
-   * @param subcommandName - The positional naming the subcommand, removed once
-   * @returns The remaining tokens, in their original form
-   */
-  private argvForSubcommand(argv: string[], subcommandName: string): string[] {
-    const result: string[] = [];
-    let subcommandRemoved = false;
-
-    for (let index = 0; index < argv.length; index++) {
-      const token = argv[index];
-      if (token === undefined) continue;
-
-      // Everything after `--` is verbatim by definition.
-      if (token === "--") {
-        result.push(...argv.slice(index));
-        break;
-      }
-
-      const owned = this.ownOptionForToken(token);
-
-      if (owned) {
-        // `--opt=value` carries its value; `--opt value` consumes the next
-        // token, but only when the option actually takes one.
-        if (owned.type !== "boolean" && !token.includes("=")) {
-          index++;
-        }
-
-        continue;
-      }
-
-      if (!subcommandRemoved && token === subcommandName) {
-        subcommandRemoved = true;
-        continue;
-      }
-
-      result.push(token);
-    }
-
-    return result;
-  }
-
-  /**
-   * The option this command declares that `token` refers to, or undefined.
-   *
-   * Only exact matches count. A clustered short group like `-abc` is passed
-   * through to the subcommand rather than guessed at, which is the safer
-   * failure: the subcommand reports an unknown option instead of this command
-   * silently swallowing a flag and the value after it.
-   */
-  private ownOptionForToken(token: string): NormalizedOption | undefined {
-    if (!token.startsWith("-") || token === "-") return undefined;
-
-    const name = (token.startsWith("--") ? token.slice(2) : token.slice(1)).split("=")[0];
-    if (!name) return undefined;
-
-    return Object.values(this.options).find(
-      (opt) =>
-        opt.long === name ||
-        opt.short === name ||
-        (opt.type === "boolean" && opt.negatable && `no-${opt.long}` === name),
-    );
-  }
-
-  private extractArgs(parsed: mri.Argv): ArgsToValues<T> {
+  private extractArgs(parsed: ParsedArgv): ArgsToValues<T> {
     const values: unknown[] = [];
 
     for (let i = 0; i < this.args.length; i++) {
@@ -647,7 +585,7 @@ export class Command<
       if (!arg) continue;
 
       if (arg.variadic) {
-        const remaining = parsed._.slice(i);
+        const remaining = parsed.positionals.slice(i);
 
         if (!arg.optional && remaining.length === 0) {
           throw new MissingArgumentError(arg.name, this);
@@ -658,7 +596,7 @@ export class Command<
           switch (arg.type) {
             case "number": {
               const numValue = Number(value);
-              if (isNaN(numValue)) {
+              if (!Number.isFinite(numValue) || String(value).trim() === "") {
                 throw new InvalidArgumentError(`${arg.name} values must be numbers`, this);
               }
               typedValue = numValue;
@@ -685,7 +623,7 @@ export class Command<
         values.push(typedRemaining);
         break;
       } else {
-        const value = parsed._[i];
+        const value = parsed.positionals[i];
 
         if (value === undefined && !arg.optional) {
           throw new MissingArgumentError(arg.name, this);
@@ -696,7 +634,7 @@ export class Command<
           case "number": {
             if (value !== undefined) {
               const numValue = Number(value);
-              if (isNaN(numValue)) {
+              if (!Number.isFinite(numValue) || String(value).trim() === "") {
                 throw new InvalidArgumentError(`${arg.name} must be a number`, this);
               }
               typedValue = numValue;
@@ -726,77 +664,18 @@ export class Command<
       }
     }
 
+    if (!this.args.some((arg) => arg.variadic) && parsed.positionals.length > this.args.length) {
+      throw new InvalidArgumentError(
+        `Unexpected argument: ${parsed.positionals[this.args.length]}`,
+        this,
+      );
+    }
     return values as ArgsToValues<T>;
   }
 
-  private extractOptions(parsed: mri.Argv): OptionsToValues<O> {
-    return this.extractOptionsFromDefs(parsed, this.options) as OptionsToValues<O>;
-  }
-
-  private parseArgvWithOptions(
-    argv: string[],
-    optionDefs: NormalizedOptions,
-    throwOnUnknown = false,
-  ): mri.Argv {
-    const booleanFlags: string[] = [];
-    const stringFlags: string[] = [];
-    const aliases: Record<string, string> = {};
-    const knownFlags = new Set<string>();
-
-    // Add built-in flags
-    knownFlags.add("help");
-    knownFlags.add("h");
-    knownFlags.add("version");
-    knownFlags.add("V");
-
-    for (const opt of Object.values(optionDefs)) {
-      knownFlags.add(opt.long);
-
-      if (opt.type === "boolean") {
-        booleanFlags.push(opt.long);
-        if (opt.negatable) {
-          booleanFlags.push(`no-${opt.long}`);
-          knownFlags.add(`no-${opt.long}`);
-        }
-      } else {
-        stringFlags.push(opt.long);
-      }
-
-      if (opt.short) {
-        aliases[opt.short] = opt.long;
-        knownFlags.add(opt.short);
-      }
-    }
-
-    const normalizedArgv = argv.map((arg) => (arg === "-" ? STDIN_POSITIONAL_SENTINEL : arg));
-    const result = mri(normalizedArgv, {
-      boolean: booleanFlags,
-      string: stringFlags,
-      alias: aliases,
-    });
-    result._ = result._.map((arg) => (arg === STDIN_POSITIONAL_SENTINEL ? "-" : arg));
-
-    // Check for unknown flags after parsing by comparing parsed keys against known flags
-    // Only throw for unknown flags in leaf commands (not parent commands)
-    // Parent commands pass unknown flags through to subcommands
-    if (throwOnUnknown) {
-      for (const key of Object.keys(result)) {
-        if (key !== "_" && !knownFlags.has(key)) {
-          const availableOptions = Array.from(knownFlags).filter(
-            (f) => f.length > 1 && f !== "help" && f !== "version",
-          );
-          const suggestions = findSuggestions(key, availableOptions);
-          throw new UnknownOptionError(key, availableOptions, suggestions, this);
-        }
-      }
-    }
-
-    return result;
-  }
-
   private coerceToNumber(value: unknown, key: string): number {
-    const numValue = Number(value);
-    if (isNaN(numValue)) {
+    const numValue = typeof value === "string" || typeof value === "number" ? Number(value) : NaN;
+    if (!Number.isFinite(numValue) || String(value).trim() === "") {
       throw new InvalidOptionError(`${key} must be a number`, this);
     }
     return numValue;
@@ -804,10 +683,10 @@ export class Command<
 
   private runValidation(
     value: unknown,
-    validator: (value: unknown) => true | string,
+    validator: NonNullable<Option["validate"]>,
     name: string,
   ): void {
-    const result = validator(value);
+    const result = (validator as (value: unknown) => true | string)(value);
     if (result !== true) {
       throw new ValidationError(
         typeof result === "string" ? result : `Invalid value for ${name}`,
@@ -834,7 +713,7 @@ export class Command<
     switch (opt.type) {
       case "number": {
         const numValue = Number(envValue);
-        if (isNaN(numValue)) {
+        if (!Number.isFinite(numValue) || envValue.trim() === "") {
           throw new InvalidOptionError(
             `Environment variable ${opt.env} for ${key} must be a number`,
             this,
@@ -849,104 +728,59 @@ export class Command<
     }
   }
 
-  private extractMultipleOptionValue(
-    value: unknown,
-    opt: NormalizedOptions[string],
-    key: string,
-  ): unknown[] {
-    const arr = value === undefined ? [] : Array.isArray(value) ? value : [value];
-    if (opt.type === "number") {
-      return arr.map((v: unknown) => this.coerceToNumber(v, key));
-    }
-    return arr;
-  }
-
-  private extractNegatableBoolean(
-    parsed: mri.Argv,
-    opt: NormalizedOptions[string],
-    key: string,
-  ): boolean | undefined {
-    const negatedValue = parsed[`no-${opt.long}`];
-    if (negatedValue === true) {
-      return false;
-    }
-    const value = parsed[opt.long];
-    if (value !== undefined) {
-      return value as boolean;
-    }
-    // Check env var before default
-    const envValue = this.getEnvValue(opt, key);
-    if (envValue !== undefined) {
-      return envValue as boolean;
-    }
-    return opt.default as boolean | undefined;
-  }
-
   private extractOptionsFromDefs(
-    parsed: mri.Argv,
+    parsed: ParsedArgv,
     optionDefs: NormalizedOptions,
+    inherited: Record<string, unknown> = {},
+    scopes: NormalizedOptions[] = [],
   ): Record<string, unknown> {
-    const optionValues: Record<string, unknown> = {};
-
+    const values: Record<string, unknown> = Object.create(null);
     for (const [key, opt] of Object.entries(optionDefs)) {
-      const value = parsed[opt.long];
-
-      if (opt.multiple) {
-        const arr = this.extractMultipleOptionValue(value, opt, key);
-        if (opt.choices) {
-          for (const v of arr) {
-            this.validateChoice(v, opt.choices, key);
-          }
+      const raw =
+        parsed.values[key] ??
+        (Object.hasOwn(inherited, key) ? inherited[key] : undefined) ??
+        this.getEnvValue(opt, key) ??
+        opt.default;
+      const value = opt.multiple
+        ? raw === undefined
+          ? []
+          : Array.isArray(raw)
+            ? raw
+            : [raw]
+        : raw;
+      if (!opt.multiple && Array.isArray(value))
+        throw new InvalidOptionError(`${key} must be a ${opt.type}`, this);
+      const convert = (item: unknown): unknown => {
+        const typed = opt.type === "number" ? this.coerceToNumber(item, key) : item;
+        if (typeof typed !== opt.type)
+          throw new InvalidOptionError(`${key} must be a ${opt.type}`, this);
+        return typed;
+      };
+      values[key] = Array.isArray(value)
+        ? value.map(convert)
+        : value === undefined
+          ? undefined
+          : convert(value);
+    }
+    const validators = new Map<string, Set<NonNullable<Option["validate"]>>>();
+    for (const definitions of [...scopes, optionDefs]) {
+      for (const [key, opt] of Object.entries(definitions)) {
+        const value = values[key];
+        if (opt.required && (value === undefined || (Array.isArray(value) && value.length === 0))) {
+          throw new MissingOptionError(opt.long, this);
         }
-        if (opt.validate) {
-          for (const v of arr) {
-            this.runValidation(v, opt.validate, key);
-          }
-        }
-        optionValues[key] = arr;
-      } else if (opt.type === "number") {
-        if (value !== undefined) {
-          optionValues[key] = this.coerceToNumber(value, key);
-        } else {
-          const envValue = this.getEnvValue(opt, key);
-          optionValues[key] = envValue !== undefined ? envValue : opt.default;
-        }
-      } else if (opt.type === "boolean" && opt.negatable) {
-        optionValues[key] = this.extractNegatableBoolean(parsed, opt, key);
-      } else if (opt.type === "boolean") {
-        // For non-negatable booleans, check env var when CLI not provided
-        if (value !== undefined) {
-          optionValues[key] = value;
-        } else {
-          const envValue = this.getEnvValue(opt, key);
-          optionValues[key] = envValue !== undefined ? envValue : opt.default;
-        }
-      } else {
-        // String type
-        if (value !== undefined) {
-          optionValues[key] = value;
-        } else {
-          const envValue = this.getEnvValue(opt, key);
-          optionValues[key] = envValue !== undefined ? envValue : opt.default;
-        }
-      }
-
-      if (opt.required && optionValues[key] === undefined) {
-        throw new MissingOptionError(opt.long, this);
-      }
-
-      // Run choice validation and custom validation for non-multiple options (multiple handled above)
-      if (!opt.multiple && optionValues[key] !== undefined) {
-        if (opt.choices) {
-          this.validateChoice(optionValues[key], opt.choices, key);
-        }
-        if (opt.validate) {
-          this.runValidation(optionValues[key], opt.validate, key);
+        if (value === undefined) continue;
+        const items = Array.isArray(value) ? value : [value];
+        if (opt.choices) for (const item of items) this.validateChoice(item, opt.choices, key);
+        const seen = validators.get(key) ?? new Set();
+        if (opt.validate && !seen.has(opt.validate)) {
+          for (const item of items) this.runValidation(item, opt.validate, key);
+          seen.add(opt.validate);
+          validators.set(key, seen);
         }
       }
     }
-
-    return optionValues;
+    return { ...values };
   }
 }
 
@@ -1006,17 +840,17 @@ export function command<
   const T extends readonly PositionalArg[],
   const O extends Options,
   const I extends Options,
->(options: HybridCommandOptions<T, O, I> & { inherits: I }): Command<T, O, I>;
+>(options: Omit<HybridCommandOptions<T, O, I>, "inherits"> & { inherits: I }): Command<T, O, I>;
 export function command<const T extends readonly PositionalArg[], const O extends Options>(
-  options: Omit<HybridCommandOptions<T, O, {}>, "inherits">,
+  options: Omit<HybridCommandOptions<T, O, {}>, "inherits"> & { inherits?: never },
 ): Command<T, O, {}>;
 export function command<
   const T extends readonly PositionalArg[],
   const O extends Options,
   const I extends Options,
->(options: LeafCommandOptions<T, O, I> & { inherits: I }): Command<T, O, I>;
+>(options: Omit<LeafCommandOptions<T, O, I>, "inherits"> & { inherits: I }): Command<T, O, I>;
 export function command<const T extends readonly PositionalArg[], const O extends Options>(
-  options: Omit<LeafCommandOptions<T, O, {}>, "inherits">,
+  options: Omit<LeafCommandOptions<T, O, {}>, "inherits"> & { inherits?: never },
 ): Command<T, O, {}>;
 export function command<const O extends Options>(
   options: ParentCommandOptions<O>,

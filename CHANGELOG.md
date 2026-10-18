@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Preserve arguments, repeated options, negation, and `--` through nested commands.
+- Enforce missing option values, surplus operands, inherited validation, and multiple-option fallbacks and requirements. Scalar repeats now use the last value.
+- Set failing exit statuses for usage errors; resolve help using full command paths.
+- Infer typed validators, constrain defaults/choices, and correctly include `undefined` for optional booleans.
+- Reject conflicting names and flags. Preserve positional `completions` values and explicit commands; expose `generateCompletions` for programmatic installation.
+
+These corrections change behavior for callers relying on previously ignored input, conflicting definitions, scalar arrays, or always-defined boolean types.
+
 ## [1.5.1](https://github.com/bentruyman/cli/compare/1.5.0...1.5.1) (2026-08-21)
 
 ### Bug Fixes

@@ -23,6 +23,7 @@ describe("run completions subcommand", () => {
   });
 
   afterEach(() => {
+    process.exitCode = 0;
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
   });
