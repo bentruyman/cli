@@ -78,21 +78,36 @@ it.skipIf(!Bun.which("zsh"))(
       for (const [words, expected] of cases) {
         const setup = `autoload -Uz compinit; compinit -D; source ${quote(path)}; PS1=""; function dump_buffer { print -r -- "RES""ULT:$BUFFER:END"; zle reset-prompt; }; zle -N dump_buffer; bindkey "^X" dump_buffer; print -r -- RE""ADY`;
         const script = `zmodload zsh/zpty
-zpty worker zsh -f
+zpty -b worker zsh -f
+trap 'zpty -d worker' EXIT
+zmodload zsh/zselect
+wait_for_output() {
+  local output="" chunk
+  for attempt in {1..500}; do
+    if zpty -r worker chunk; then
+      output+="$chunk"
+      if [[ "$output" == \${~1} ]]; then
+        print -r -- "$output"
+        return
+      fi
+    fi
+    zselect -t 1
+  done
+  print -ru2 -- "Timed out waiting for $1. Terminal output: $output"
+  return 1
+}
 zpty -w worker ${quote(setup)}
-zpty -r worker output '*READY*'
+wait_for_output '*READY*' || exit 1
 zpty -w -n worker ${quote(words.join(" ") + "\t\x18")}
-zpty -r worker output '*RESULT:*:END*'
-print -r -- "$output"
-zpty -d worker
+wait_for_output '*RESULT:*:END*' || exit 1
 `;
         const result = Bun.spawnSync(["zsh", "-f"], {
           stdin: Buffer.from(script),
-          timeout: 5000,
+          timeout: 15000,
           env: { ...process.env, TERM: "xterm" },
         });
-        expect(result.exitCode).toBe(0);
         expect(result.stderr.toString()).toBe("");
+        expect(result.exitCode).toBe(0);
         const output = result.stdout.toString();
         const prefix = `RESULT:${words.slice(0, -1).join(" ")} ${expected}`;
         expect(output.includes(`${prefix} :END`) || output.includes(`${prefix}=:END`)).toBe(true);
