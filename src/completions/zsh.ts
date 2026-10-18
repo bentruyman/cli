@@ -1,4 +1,4 @@
-import type { CommandData } from "./types";
+import type { CommandData } from "./types.js";
 
 /**
  * Generates a zsh completion script for a command tree.

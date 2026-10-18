@@ -1,4 +1,4 @@
-import type { CommandData } from "./types";
+import type { CommandData } from "./types.js";
 
 function escapeFish(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");

@@ -7,7 +7,7 @@ import type {
   NormalizedOptions,
   PositionalArg,
   TypeMap,
-} from "./types";
+} from "./types.js";
 
 const VALUE_SUFFIXES: Record<keyof TypeMap, string> = {
   number: "=<num>",
