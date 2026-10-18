@@ -9,16 +9,16 @@ describe("type inference for inherited options", () => {
       name: { type: "string", long: "name" },
     } as const satisfies Options;
 
-    let capturedVerbose: boolean = false;
+    let capturedVerbose: boolean | undefined = false;
     let capturedCount: number | undefined;
     let capturedName: string | undefined;
-    let capturedOwn: boolean = false;
+    let capturedOwn: boolean | undefined = false;
 
     // This tests that TypeScript correctly infers:
-    // - verbose as boolean (always defined for boolean options)
+    // - verbose as boolean | undefined
     // - count as number | undefined
     // - name as string | undefined
-    // - own as boolean (always defined for boolean options)
+    // - own as boolean | undefined
     const child = command({
       name: "child",
       inherits: GlobalOptions,
@@ -52,7 +52,7 @@ describe("type inference for inherited options", () => {
       format: { type: "string", long: "format" },
     } as const satisfies Options;
 
-    let capturedDebug: boolean = false;
+    let capturedDebug: boolean | undefined = false;
     let capturedFormat: string | undefined;
     let capturedLimit: number | undefined;
 

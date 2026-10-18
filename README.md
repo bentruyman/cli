@@ -323,6 +323,16 @@ const rm = command({
 | `choices`     | `array`    | Restrict value to predefined set            |
 | `validate`    | `function` | Custom validation function                  |
 
+#### Parsing conventions
+
+- Options may appear before or after operands. Ancestor options may appear before or after a subcommand; options defined only by a child belong after that child name.
+- `--` ends option parsing. Following values, including `--help`, remain literal operands through nested commands. A lone `-` is an ordinary operand; string arguments with `allowStdin: true` read it from stdin.
+- Value options accept `--name value`, `--name=value`, `-n value`, and `-nvalue`. Boolean short flags can be grouped (`-vv`); a value-taking short flag consumes the remainder (`-vn3`). Negative numeric option values are accepted.
+- Missing option values and excess positional arguments are errors. `--name=` and `--name ""` explicitly supply an empty string; empty strings are invalid numbers.
+- Repeated scalar options use the last value; `multiple: true` collects all occurrences in order. `--flag=false` sets a boolean explicitly. `--no-flag` requires a boolean with `negatable: true`.
+- Omitted options, including booleans, are `undefined` when they have no environment or default fallback; required options reject missing values. Multiple options default to `[]`.
+- Command names and aliases must be unique among siblings. Long flags, generated negations, and short flags must be unambiguous throughout an active command path. Invalid definitions fail during construction.
+
 #### Default Values
 
 ```typescript
@@ -381,7 +391,7 @@ const deploy = command({
 });
 ```
 
-Value precedence: CLI argument > environment variable > default value.
+Value precedence: CLI argument > environment variable > default value. This also applies to inherited and `multiple` options. A multiple option's environment value is one array element (it is not split on commas or spaces); its default may be a scalar or an array. A required multiple option must resolve to at least one element.
 
 For booleans, the following env values are parsed as `true` (case-insensitive): `"1"`, `"true"`, `"yes"`. All other values are `false`.
 
@@ -456,7 +466,7 @@ const build = command({
 });
 ```
 
-Use `as const` on the choices array for precise type inference.
+Inline choices infer their literal types automatically. Use `as const` when extracting a choices array into a reusable variable.
 
 Invalid choices show a helpful error:
 
@@ -478,7 +488,7 @@ Options:
 
 ### Shell Completions
 
-`run()` automatically adds a `completions` subcommand that generates shell completion scripts for bash, zsh, and fish:
+`run()` provides a `completions` command when the root has no positional arguments and no explicit command or alias named `completions`. Explicit commands take precedence, and a positional value named `completions` is always passed to its handler.
 
 ```bash
 # Bash - add to ~/.bashrc
@@ -489,6 +499,13 @@ eval "$(my-cli completions zsh)"
 
 # Fish - save to completions directory
 my-cli completions fish > ~/.config/fish/completions/my-cli.fish
+```
+
+For a root with positional arguments, generate the script programmatically during installation:
+
+```typescript
+import { generateCompletions } from "@truyman/cli";
+const script = generateCompletions(cli, "zsh");
 ```
 
 The generated scripts provide context-aware completions for subcommands, options (including short flags), and nested command trees. Hidden commands are excluded automatically.
@@ -512,7 +529,7 @@ handler: async ([url]) => {
 import { MissingArgumentError } from "@truyman/cli";
 
 try {
-  myCommand.run(argv);
+  await myCommand.run(argv);
 } catch (err) {
   if (err instanceof MissingArgumentError) {
     // Custom handling
@@ -534,16 +551,16 @@ try {
 
 ### Type Safety
 
-Use `as const` on args for precise type inference:
+Inline argument definitions infer their tuple types automatically:
 
 ```typescript
 // ✓ Handler receives [string, number | undefined]
 args: [
   { name: "file", type: "string" },
   { name: "count", type: "number", optional: true },
-] as const,
+],
 
-// ✗ Without as const: handler receives unknown[]
+// No `as const` needed for inline definitions.
 ```
 
 For reusable options, use `as const satisfies Options`:
@@ -556,7 +573,7 @@ const GlobalOptions = {
 
 ### `run(command, argv)`
 
-Runs the command. Handles `-h`/`--help` automatically. Missing args? Shows help. Bad option? Red error + usage.
+Runs the command. Handles `-h`/`--help` automatically, including nested command paths and options before subcommands. Explicit help/version use stdout. Usage errors use stderr and set `process.exitCode = 1`; the process is allowed to finish naturally. `command.run()` throws errors instead, for callers that manage their own output and exit status.
 
 ### `command.help()`
 

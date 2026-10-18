@@ -14,9 +14,9 @@ import {
   InvalidChoiceError,
   type ErrorSource,
 } from "./errors";
-import type { AnyCommand } from "./types";
 
-export { command, Command };
+export { command, Command, generateCompletions };
+export type { Shell } from "./completions";
 export {
   InvalidArgumentError,
   InvalidChoiceError,
@@ -53,41 +53,14 @@ function stderr(message: string): void {
 
 const VALID_SHELLS: Shell[] = ["bash", "zsh", "fish"];
 
-function hasBuiltinFlag(argv: string[], long: string, short: string): boolean {
-  for (const arg of argv) {
-    if (arg === "--") return false;
-    if (arg === long || arg === short) return true;
-  }
-  return false;
-}
-
 function handleCompletions(cmd: Command<any, any, any>, argv: string[]): void {
   const shell = argv[0];
-  if (!shell || !VALID_SHELLS.includes(shell as Shell)) {
+  if (!shell || !VALID_SHELLS.includes(shell as Shell) || argv.length !== 1) {
+    process.exitCode = 1;
     stderr(`Usage: ${cmd.name} completions <bash|zsh|fish>`);
     return;
   }
   stdout(generateCompletions(cmd, shell as Shell));
-}
-
-function findHelpTarget(cmd: AnyCommand, argv: string[]): AnyCommand {
-  if (!(cmd instanceof Command) || !cmd.isParent()) {
-    return cmd;
-  }
-
-  for (const [index, arg] of argv.entries()) {
-    if (arg === "--") break;
-    if (arg === "--help" || arg === "-h") continue;
-    if (arg.startsWith("-")) continue;
-
-    const subCmd = cmd.getSubcommand(arg);
-    if (subCmd) {
-      return findHelpTarget(subCmd, argv.slice(index + 1));
-    }
-    break;
-  }
-
-  return cmd;
 }
 
 /** Type guard for CLI errors with code and source properties */
@@ -127,6 +100,7 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
     default:
       throw error;
   }
+  process.exitCode = 1;
 }
 
 /**
@@ -156,23 +130,8 @@ function handleError(error: unknown, cmd: Command<any, any, any>): void {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function run(cmd: Command<any, any, any>, argv: string[]): Promise<void> {
   // Handle completions subcommand
-  if (argv[0] === "completions") {
+  if (argv[0] === "completions" && cmd.args.length === 0 && !cmd.getSubcommand("completions")) {
     handleCompletions(cmd, argv.slice(1));
-    return;
-  }
-
-  if (hasBuiltinFlag(argv, "--version", "-V")) {
-    if (cmd.version) {
-      stdout(cmd.version);
-    } else {
-      stderr(kleur.red(`${cmd.name}: no version specified`));
-    }
-    return;
-  }
-
-  if (hasBuiltinFlag(argv, "--help", "-h")) {
-    const helpTarget = findHelpTarget(cmd, argv);
-    stdout(helpTarget.help());
     return;
   }
 

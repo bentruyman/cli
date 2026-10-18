@@ -8,6 +8,14 @@ export type TypeMap = {
   boolean: boolean;
 };
 
+type TypedValue = {
+  [K in keyof TypeMap]: {
+    type: K;
+    choices?: readonly TypeMap[K][];
+    validate?: (value: TypeMap[K]) => true | string;
+  };
+}[keyof TypeMap];
+
 /**
  * Defines a positional argument for a command.
  *
@@ -21,37 +29,16 @@ export type TypeMap = {
  * ] as const satisfies readonly PositionalArg[];
  * ```
  */
-export type PositionalArg = {
-  /** The name of the argument, shown in help output */
+export type PositionalArg = TypedValue & {
+  /** Name shown in help output. */
   name: string;
-  /** The data type: "string", "number", or "boolean" */
-  type: keyof TypeMap;
-  /** Description shown in help output */
   description?: string;
-  /** If true, argument is not required. Shows as [name] in help instead of <name> */
+  /** Allows an omitted value. */
   optional?: boolean;
-  /** If true, collects all remaining positional arguments into an array. Must be the last arg. */
+  /** Collects remaining operands into an array; must be last. */
   variadic?: boolean;
   /** If true, a literal "-" value reads this string argument from stdin. */
   allowStdin?: boolean;
-  /**
-   * Restricts the argument value to a predefined set of choices.
-   * Use `as const` for type inference.
-   * @example
-   * ```typescript
-   * { choices: ["start", "stop", "restart"] as const }
-   * ```
-   */
-  choices?: readonly (string | number | boolean)[];
-  /**
-   * Custom validation function called after type coercion.
-   * Return true if valid, or a string error message if invalid.
-   * @example
-   * ```typescript
-   * { validate: (v) => v.length > 0 || "Value cannot be empty" }
-   * ```
-   */
-  validate?: (value: unknown) => true | string;
 };
 
 /**
@@ -69,85 +56,29 @@ export type PositionalArg = {
  * ```
  */
 export type Option = {
-  /** Description shown in help output */
   description?: string;
-  /** The data type: "string", "number", or "boolean" */
-  type: keyof TypeMap;
-  /**
-   * Long flag name (e.g., "verbose" for --verbose).
-   * If omitted, inferred from the option's key name.
-   */
+  /** Long flag name; defaults to the option key. */
   long?: string;
-  /** Short flag name (e.g., "v" for -v) */
+  /** Single-character short flag. */
   short?: string;
-  /**
-   * If true, option can be specified multiple times and values are collected into an array.
-   * @example
-   * ```typescript
-   * { file: { type: "string", multiple: true } }
-   * // Allows: --file a.txt --file b.txt → ["a.txt", "b.txt"]
-   * ```
-   */
-  multiple?: boolean;
-  /**
-   * Default value used when option is not provided.
-   * Options with defaults are never undefined in the handler.
-   */
-  default?: string | number | boolean;
-  /**
-   * If true, option must be provided (unless it has a default).
-   * Missing required options throw MissingOptionError.
-   */
+  /** Requires a value from CLI, environment, or default. Multiple options require a nonempty array. */
   required?: boolean;
-  /**
-   * Custom placeholder shown in help output.
-   * @example
-   * ```typescript
-   * { config: { type: "string", placeholder: "path" } }
-   * // Shows: --config=<path> instead of --config=<str>
-   * ```
-   */
   placeholder?: string;
-  /**
-   * Environment variable name to use as fallback when option is not provided via CLI.
-   * Precedence: CLI argument > environment variable > default value.
-   * @example
-   * ```typescript
-   * { token: { type: "string", env: "API_TOKEN" } }
-   * // Value can come from --token or API_TOKEN env var
-   * ```
-   */
+  /** Environment fallback, after CLI and before default. For multiple options this is one value. */
   env?: string;
-  /**
-   * If true, allows --no-<flag> syntax to explicitly set false.
-   * Only valid for boolean options.
-   * @example
-   * ```typescript
-   * { color: { type: "boolean", negatable: true } }
-   * // Allows: --color or --no-color
-   * ```
-   */
-  negatable?: boolean;
-  /**
-   * Restricts the option value to a predefined set of choices.
-   * Use `as const` for type inference.
-   * @example
-   * ```typescript
-   * { choices: ["json", "yaml", "toml"] as const }
-   * ```
-   */
-  choices?: readonly (string | number | boolean)[];
-  /**
-   * Custom validation function called after type coercion.
-   * Return true if valid, or a string error message if invalid.
-   * For `multiple` options, validation runs on each value.
-   * @example
-   * ```typescript
-   * { validate: (v) => v >= 1 && v <= 65535 || "Port must be 1-65535" }
-   * ```
-   */
-  validate?: (value: unknown) => true | string;
-};
+} & {
+  [K in keyof TypeMap]: {
+    type: K;
+    choices?: readonly TypeMap[K][];
+    /** Validates each coerced value. Return true or an error message. */
+    validate?: (value: TypeMap[K]) => true | string;
+    /** Enables --no-<flag>, for booleans only. */
+    negatable?: K extends "boolean" ? boolean : never;
+  } & (
+    | { multiple: true; default?: TypeMap[K] | readonly TypeMap[K][] }
+    | { multiple?: false; default?: TypeMap[K] }
+  );
+}[keyof TypeMap];
 
 /**
  * Record of option definitions keyed by option name.
@@ -242,7 +173,7 @@ export type ArgsToValues<T extends readonly PositionalArg[]> = {
 export type OptionsToValues<O extends Options> = {
   [K in keyof O]: O[K] extends { choices: readonly (infer C)[]; multiple: true }
     ? C[]
-    : O[K] extends { choices: readonly (infer C)[]; default: infer _D }
+    : O[K] extends { choices: readonly (infer C)[]; default: string | number | boolean }
       ? C
       : O[K] extends { choices: readonly (infer C)[]; required: true }
         ? C
@@ -250,15 +181,16 @@ export type OptionsToValues<O extends Options> = {
           ? C | undefined
           : O[K] extends { multiple: true; type: infer U extends keyof TypeMap }
             ? TypeMap[U][]
-            : O[K] extends { type: "boolean" }
-              ? boolean
-              : O[K] extends { type: infer U extends keyof TypeMap; default: infer _D }
+            : O[K] extends {
+                  type: infer U extends keyof TypeMap;
+                  default: string | number | boolean;
+                }
+              ? TypeMap[U]
+              : O[K] extends { type: infer U extends keyof TypeMap; required: true }
                 ? TypeMap[U]
-                : O[K] extends { type: infer U extends keyof TypeMap; required: true }
-                  ? TypeMap[U]
-                  : O[K] extends { type: infer U extends keyof TypeMap }
-                    ? TypeMap[U] | undefined
-                    : never;
+                : O[K] extends { type: infer U extends keyof TypeMap }
+                  ? TypeMap[U] | undefined
+                  : never;
 };
 
 /**
@@ -335,7 +267,7 @@ export type LeafCommandOptions<
   O extends Options = Options,
   I extends Options = {},
 > = BaseCommandOptions & {
-  /** Positional arguments. Use `as const` for type inference. */
+  /** Positional arguments. Inline definitions infer their tuple types. */
   args?: T;
   /** Option definitions */
   options?: O;
@@ -452,7 +384,7 @@ export type HybridCommandOptions<
   O extends Options = Options,
   I extends Options = {},
 > = BaseCommandOptions & {
-  /** Positional arguments for the default handler. Use `as const` for type inference. */
+  /** Positional arguments for the default handler; inline tuples are inferred. */
   args?: T;
   /** Option definitions */
   options?: O;

@@ -24,7 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture
 
 - `src/index.ts` - Public API exports (`command`, `run`) and top-level error handling
-- `src/command.ts` - `Command` class with argv parsing (via mri) and handler execution
+- `src/command.ts` - `Command` class with command routing, value validation, and handler execution
+- `src/parse.ts` - Definition-aware argv parsing; preserves raw tokens during routing
 - `src/types.ts` - Type definitions with generics for type-safe args/options inference
 - `src/help.ts` - Help text formatting
 - `src/errors.ts` - Custom error classes (`MissingArgumentError`, `InvalidOptionError`)
