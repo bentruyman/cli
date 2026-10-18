@@ -9,6 +9,7 @@
 - Set failing exit statuses for usage errors; resolve help using full command paths.
 - Infer typed validators, constrain defaults/choices, and correctly include `undefined` for optional booleans.
 - Reject conflicting names and flags. Preserve positional `completions` values and explicit commands; expose `generateCompletions` for programmatic installation.
+- Fix shell completion aliases, inherited options, and nested paths; source zsh scripts after `compinit`.
 
 These corrections change behavior for callers relying on previously ignored input, conflicting definitions, scalar arrays, or always-defined boolean types.
 

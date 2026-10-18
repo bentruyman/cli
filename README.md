@@ -494,7 +494,9 @@ Options:
 # Bash - add to ~/.bashrc
 eval "$(my-cli completions bash)"
 
-# Zsh - add to ~/.zshrc (before compinit)
+# Zsh - add to ~/.zshrc after initializing completion
+autoload -Uz compinit
+compinit
 eval "$(my-cli completions zsh)"
 
 # Fish - save to completions directory

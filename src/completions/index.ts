@@ -1,3 +1,4 @@
+import { normalizeOptions } from "../command";
 import type { AnyCommand, NormalizedOptions } from "../types";
 import { generateBashCompletions } from "./bash";
 import { generateFishCompletions } from "./fish";
@@ -32,9 +33,11 @@ export function generateCompletions(cmd: AnyCommand, shell: Shell): string {
  * Collects command data recursively from a command tree.
  * Converts from Command instances to the normalized CommandData structure.
  */
-function collectCommandData(cmd: AnyCommand): CommandData {
-  const options = collectOptions(cmd.options);
-  const subcommands = collectSubcommands(cmd);
+function collectCommandData(cmd: AnyCommand, parent: NormalizedOptions = {}): CommandData {
+  const details = cmd as AnyCommand & { inherits?: NormalizedOptions };
+  const definitions = normalizeOptions({ ...details.inherits, ...cmd.options }, parent);
+  const options = collectOptions(definitions);
+  const subcommands = collectSubcommands(cmd, definitions);
 
   return {
     name: cmd.name,
@@ -54,10 +57,12 @@ function collectOptions(options: NormalizedOptions): OptionData[] {
     description: opt.description,
     choices: opt.choices,
     env: opt.env,
+    negatable: opt.negatable,
+    multiple: opt.multiple,
   }));
 }
 
-function collectSubcommands(cmd: AnyCommand): CommandData[] {
+function collectSubcommands(cmd: AnyCommand, definitions: NormalizedOptions): CommandData[] {
   // Use duck typing to check if cmd has subcommands
   const cmdWithSubs = cmd as { subcommands?: Map<string, AnyCommand> };
   if (!cmdWithSubs.subcommands || cmdWithSubs.subcommands.size === 0) {
@@ -66,5 +71,5 @@ function collectSubcommands(cmd: AnyCommand): CommandData[] {
 
   return Array.from(cmdWithSubs.subcommands.values())
     .filter((sub) => !sub.hidden)
-    .map((sub) => collectCommandData(sub));
+    .map((sub) => collectCommandData(sub, definitions));
 }

@@ -83,7 +83,7 @@ describe("fish completions", () => {
     expect(script).toContain("-a build -d 'Build project'");
   });
 
-  it("uses __fish_use_subcommand for top-level with subcommands", () => {
+  it("scopes top-level commands to the root context", () => {
     const data: CommandData = {
       name: "my-cli",
       options: [],
@@ -92,10 +92,10 @@ describe("fish completions", () => {
 
     const script = generateFishCompletions(data);
 
-    expect(script).toContain("-n __fish_use_subcommand");
+    expect(script).toContain("test (__my_cli_context) = 0:0");
   });
 
-  it("uses __fish_seen_subcommand_from for nested completions", () => {
+  it("scopes nested options to their command context", () => {
     const data: CommandData = {
       name: "my-cli",
       options: [],
@@ -111,7 +111,7 @@ describe("fish completions", () => {
 
     const script = generateFishCompletions(data);
 
-    expect(script).toContain("__fish_seen_subcommand_from config");
+    expect(script).toContain("contains -- (__my_cli_context) 1:0 1:1");
   });
 
   it("handles nested subcommands", () => {
