@@ -1,7 +1,7 @@
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
-import { InvalidOptionError, UnknownOptionError, type ErrorSource } from "./errors";
-import { findSuggestions } from "./suggestions";
-import type { NormalizedOptions } from "./types";
+import { InvalidOptionError, UnknownOptionError, type ErrorSource } from "./errors.js";
+import { findSuggestions } from "./suggestions.js";
+import type { NormalizedOptions } from "./types.js";
 
 export interface ParsedArgv {
   values: Record<string, unknown>;

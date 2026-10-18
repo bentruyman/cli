@@ -1,7 +1,7 @@
 import kleur from "kleur";
 
-import { command, Command } from "./command";
-import { generateCompletions, type Shell } from "./completions";
+import { command, Command } from "./command.js";
+import { generateCompletions, type Shell } from "./completions/index.js";
 import {
   MissingArgumentError,
   InvalidArgumentError,
@@ -13,10 +13,10 @@ import {
   ValidationError,
   InvalidChoiceError,
   type ErrorSource,
-} from "./errors";
+} from "./errors.js";
 
 export { command, Command, generateCompletions };
-export type { Shell } from "./completions";
+export type { Shell } from "./completions/index.js";
 export {
   InvalidArgumentError,
   InvalidChoiceError,
@@ -41,7 +41,7 @@ export type {
   Options,
   ParentCommandOptions,
   PositionalArg,
-} from "./types";
+} from "./types.js";
 
 function stdout(message: string): void {
   process.stdout.write(message + "\n");

@@ -1,9 +1,9 @@
-import { normalizeOptions } from "../command";
-import type { AnyCommand, NormalizedOptions } from "../types";
-import { generateBashCompletions } from "./bash";
-import { generateFishCompletions } from "./fish";
-import type { CommandData, OptionData, Shell } from "./types";
-import { generateZshCompletions } from "./zsh";
+import { normalizeOptions } from "../command.js";
+import type { AnyCommand, NormalizedOptions } from "../types.js";
+import { generateBashCompletions } from "./bash.js";
+import { generateFishCompletions } from "./fish.js";
+import type { CommandData, OptionData, Shell } from "./types.js";
+import { generateZshCompletions } from "./zsh.js";
 
 export type { CommandData, OptionData, Shell };
 

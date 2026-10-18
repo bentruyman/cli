@@ -1,4 +1,4 @@
-import { parseArgv, type ParsedArgv } from "./parse";
+import { parseArgv, type ParsedArgv } from "./parse.js";
 
 import {
   MissingArgumentError,
@@ -10,9 +10,9 @@ import {
   ReservedOptionError,
   ValidationError,
   InvalidChoiceError,
-} from "./errors";
-import { findSuggestions } from "./suggestions";
-import { formatHelp, formatHybridHelp, formatParentHelp } from "./help";
+} from "./errors.js";
+import { findSuggestions } from "./suggestions.js";
+import { formatHelp, formatHybridHelp, formatParentHelp } from "./help.js";
 import type {
   AnyCommand,
   ArgsToValues,
@@ -28,7 +28,7 @@ import type {
   OptionsToValues,
   ParentCommandOptions,
   PositionalArg,
-} from "./types";
+} from "./types.js";
 
 function isHybridOptions<T extends readonly PositionalArg[], O extends Options, I extends Options>(
   opts: CommandOptions<T, O, I>,
