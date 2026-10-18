@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { command } from "../../src/index";
@@ -73,10 +73,14 @@ it.skipIf(!Bun.which("zsh"))(
   () => {
     const dir = mkdtempSync(join(tmpdir(), "cli-completions-"));
     try {
+      const insecure = join(dir, "insecure");
+      mkdirSync(insecure);
+      chmodSync(insecure, 0o777);
       const path = join(dir, "completion.zsh");
       writeFileSync(path, generateCompletions(root, "zsh"));
       for (const [words, expected] of cases) {
-        const setup = `autoload -Uz compinit; compinit -D; source ${quote(path)}; PS1=""; function dump_buffer { print -r -- "RES""ULT:$BUFFER:END"; zle reset-prompt; }; zle -N dump_buffer; bindkey "^X" dump_buffer; print -r -- RE""ADY`;
+        // Ignore insecure completion directories without prompting, including those on CI runners.
+        const setup = `fpath=(${quote(insecure)} $fpath); autoload -Uz compinit; compinit -i -D; source ${quote(path)}; PS1=""; function dump_buffer { print -r -- "RES""ULT:$BUFFER:END"; zle reset-prompt; }; zle -N dump_buffer; bindkey "^X" dump_buffer; print -r -- RE""ADY`;
         const script = `zmodload zsh/zpty
 zpty -b worker zsh -f
 trap 'zpty -d worker' EXIT
